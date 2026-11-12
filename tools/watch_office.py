@@ -185,6 +185,9 @@ def watch_powerpoint(path: str, shots: str | None, seconds: float) -> dict:
 
 
 def watch_hangul(path: str, shots: str | None, seconds: float) -> dict:
+    if not path.lower().endswith((".hwp", ".hwpx")):
+        # other types are handed to another Hancom program, which this function would not close again
+        return {"error": "only .hwp and .hwpx files"}
     exe = None
     for base in (os.environ.get("ProgramFiles(x86)", ""), os.environ.get("ProgramFiles", "")):
         for root, _dirs, files in os.walk(os.path.join(base, "HNC")) if base else []:
