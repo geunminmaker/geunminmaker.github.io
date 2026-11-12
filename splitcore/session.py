@@ -11,12 +11,12 @@ from typing import Iterator
 
 from . import imaging
 from .errors import SplitError
-from .export import FORMATS, export, normalize_format
+from .export import FORMATS, export, normalize_format, page_for
 from .export.base import OutputFile, Progress
 from .grids import SPLIT_COUNTS, layouts_for
 from .loaders import load_file
 from .sources import Source
-from .splitter import SplitPlan, make_plan, output_stem, page_spec
+from .splitter import SplitPlan, make_plan, output_stem
 
 #: Never show more candidates than this from one batch (a 500-page PDF ...).
 MAX_SOURCES = 300
@@ -118,9 +118,8 @@ class Session:
             info["kind"] = FORMATS[key]["kind"]
             info["vector"] = bool(key == "pdf" and source.vector)
             if FORMATS[key]["kind"] == "document":
-                options = options or {}
-                info["page"] = page_spec(plan, options.get("paper") or "original",
-                                         options.get("margin_mm"), physical_mm=source.physical_mm).to_dict()
+                # the same call as the export makes, so the two cannot drift apart
+                info["page"] = page_for(source, plan, key, options).to_dict()
         return info
 
     # ------------------------------------------------------------ export

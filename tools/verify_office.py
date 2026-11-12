@@ -129,17 +129,18 @@ def main():
                 doc = word.Documents.Open(path, ConfirmConversions=False, ReadOnly=True,
                                           AddToRecentFiles=False, OpenAndRepair=False, Visible=False)
                 pages = doc.ComputeStatistics(2)
-                shapes = doc.Shapes.Count
+                shapes = doc.InlineShapes.Count  # pictures in the line of text, one per page
+                floating = doc.Shapes.Count
                 mode = doc.CompatibilityMode
                 doc.ExportAsFixedFormat(pdf_path, 17)
                 doc.Close(False)
                 problems = check_pdf(pdf_path, session, sid, rows, cols, fmt, paper, alpha)
                 if pages != rows * cols:
                     problems.append(f"Word page count {pages}")
-                if shapes != rows * cols:
-                    problems.append(f"Word shape count {shapes}")
+                if shapes != rows * cols or floating:
+                    problems.append(f"Word picture count {shapes} in line, {floating} floating")
                 status = "OK " if not problems else "BAD"
-                print(f"{status} {os.path.basename(path)} pages={pages} shapes={shapes} compat={mode} {problems}")
+                print(f"{status} {os.path.basename(path)} pages={pages} pictures={shapes} compat={mode} {problems}")
                 failures += bool(problems)
             except Exception as exc:  # noqa: BLE001
                 failures += 1

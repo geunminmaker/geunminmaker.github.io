@@ -11,7 +11,8 @@ library, so nothing extra has to be downloaded in the browser):
 
 When the source itself is a PDF page the source renders the tiles as *vector*
 pages instead (see ``formats/pdf.py``), so text and line art stay perfectly
-sharp at any enlargement.
+sharp at any enlargement.  If that page cannot be copied as vector data, the
+raster writer takes over.
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ from datetime import datetime, timezone
 from PIL import Image
 
 from .. import __version__, imaging
+from ..errors import SplitError
 from ..splitter import MM_PER_INCH, PageSpec, SplitPlan, iter_tiles
 from .base import Progress, looks_like_graphics, quality_option, report
 
@@ -169,7 +171,14 @@ def export_pdf(source, plan: SplitPlan, spec: PageSpec, options: dict,
                progress: Progress = None, title: str = "") -> bytes:
     vector = getattr(source, "export_vector_pdf", None)
     if vector is not None and getattr(source, "vector", False) and not options.get("rasterize"):
-        return vector(plan, spec, progress, title=title)
+        try:
+            return vector(plan, spec, progress, title=title)
+        except SplitError as exc:
+            # Some PDFs that display fine cannot be copied page by page (a reference to an object
+            # the file does not have, a cut-off end that MuPDF repaired): those still render, so
+            # the tiles are written as pictures below instead of failing the export.
+            if exc.code != "INTERNAL":
+                raise
 
     quality = quality_option(options)
     lossless = bool(options.get("lossless")) or looks_like_graphics(source)

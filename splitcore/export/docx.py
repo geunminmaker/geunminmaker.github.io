@@ -1,12 +1,20 @@
 """Word (.docx) export: one page per tile.
 
-Each tile is a picture *anchored to the page* (not inline text), which gives
+Each tile is an ordinary picture *in the line of text* (the way Word itself
+inserts pictures), alone in its paragraph, and every paragraph starts a new
+page.  The page margins are set so that the picture lands exactly where the
+page spec wants it:
 
-* exact placement - a tile from a square grid covers the whole sheet;
-* exactly one page per tile and never a trailing blank page, because the
-  picture does not take part in text flow;
-* ordinary page margins for the (empty) text layer, so Word does not show its
-  "margins are outside the printable area" warning when printing.
+* left / top margin = the picture's position on the page;
+* the text area is at least as large as the picture, so nothing is scaled.
+
+Pictures that float in front of the text were used before and gave the same
+pages in desktop Word, but a user saw them blink when the file was opened
+elsewhere.  A picture in the line is the plainest form there is, and every
+program lays it out the same way, so that is what is written now.
+
+There is exactly one page per tile and no trailing blank page: the last
+paragraph is the last picture.
 
 The package is written directly (no python-docx needed at run time).
 """
@@ -48,20 +56,22 @@ _SETTINGS = (
 )
 
 
+#: room under the picture for the line's descent (a line holding a picture is a hair taller than it)
+LINE_SLACK_TWIPS = 20
+
+
 def _page_xml(index: int, count: int, rid: str, spec: PageSpec) -> str:
-    x, y, cx, cy = emu(spec.x), emu(spec.y), emu(spec.w), emu(spec.h)
+    cx, cy = emu(spec.w), emu(spec.h)
     name = attr(f"조각 {index + 1}")
     descr = attr(f"{count}조각 중 {index + 1}번째")
     page_break = "<w:pageBreakBefore/>" if index else ""
     return (
-        f"<w:p><w:pPr>{page_break}<w:spacing w:before=\"0\" w:after=\"0\"/><w:rPr><w:sz w:val=\"2\"/><w:szCs w:val=\"2\"/></w:rPr></w:pPr>"
+        f"<w:p><w:pPr>{page_break}<w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/>"
+        "<w:ind w:left=\"0\" w:right=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"left\"/>"
+        "<w:rPr><w:sz w:val=\"2\"/><w:szCs w:val=\"2\"/></w:rPr></w:pPr>"
         "<w:r><w:rPr><w:noProof/><w:sz w:val=\"2\"/><w:szCs w:val=\"2\"/></w:rPr><w:drawing>"
-        f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="{251658240 + index}" '
-        'behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">'
-        '<wp:simplePos x="0" y="0"/>'
-        f'<wp:positionH relativeFrom="page"><wp:posOffset>{x}</wp:posOffset></wp:positionH>'
-        f'<wp:positionV relativeFrom="page"><wp:posOffset>{y}</wp:posOffset></wp:positionV>'
-        f'<wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>'
+        '<wp:inline distT="0" distB="0" distL="0" distR="0">'
+        f'<wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
         f'<wp:docPr id="{index + 1}" name="{name}" descr="{descr}"/>'
         '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>'
         '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
@@ -69,8 +79,24 @@ def _page_xml(index: int, count: int, rid: str, spec: PageSpec) -> str:
         f'<pic:blipFill><a:blip r:embed="{rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
         f'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
         '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
-        "</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"
+        "</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
     )
+
+
+def _margins(spec: PageSpec, page_w: int, page_h: int) -> tuple[int, int, int, int]:
+    """(top, right, bottom, left) in twips that put a picture in the line exactly at the spec's place.
+
+    Left and top are the picture's position.  Right and bottom are rounded down so the text area is
+    never smaller than the picture, and the bottom leaves a point of room for the line's descent.
+    """
+    left = max(0, int(spec.x * TWIPS_PER_MM))
+    top = max(0, int(spec.y * TWIPS_PER_MM))
+    right = max(0, int((spec.page_w - spec.x - spec.w) * TWIPS_PER_MM))
+    bottom = max(0, int((spec.page_h - spec.y - spec.h) * TWIPS_PER_MM) - LINE_SLACK_TWIPS)
+    # tiny pages: never let rounding push the margins past the page
+    left, right = min(left, page_w - 1), min(right, max(0, page_w - left - 1))
+    top, bottom = min(top, page_h - 1), min(bottom, max(0, page_h - top - 1))
+    return top, right, bottom, left
 
 
 def export_docx(source, plan: SplitPlan, spec: PageSpec, options: dict,
@@ -86,7 +112,7 @@ def export_docx(source, plan: SplitPlan, spec: PageSpec, options: dict,
                         spec.paper, spec.margin * k)
         page_w, page_h = int(spec.page_w * TWIPS_PER_MM), int(spec.page_h * TWIPS_PER_MM)
     page_w, page_h = max(MIN_PAGE_TWIPS, page_w), max(MIN_PAGE_TWIPS, page_h)
-    margin = int(min(720, min(page_w, page_h) / 4))  # 0.5 inch, less on tiny pages
+    top, right, bottom, left = _margins(spec, page_w, page_h)
 
     package = Package()
     body, rels, extensions = [], [
@@ -107,7 +133,7 @@ def export_docx(source, plan: SplitPlan, spec: PageSpec, options: dict,
     orient = ' w:orient="landscape"' if page_w > page_h else ""
     sect = (
         f'<w:sectPr><w:pgSz w:w="{page_w}" w:h="{page_h}"{orient}/>'
-        f'<w:pgMar w:top="{margin}" w:right="{margin}" w:bottom="{margin}" w:left="{margin}" '
+        f'<w:pgMar w:top="{top}" w:right="{right}" w:bottom="{bottom}" w:left="{left}" '
         'w:header="0" w:footer="0" w:gutter="0"/></w:sectPr>'
     )
     package.xml("word/document.xml", f"<w:document {_NS}><w:body>{''.join(body)}{sect}</w:body></w:document>")

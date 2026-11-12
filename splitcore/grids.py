@@ -13,6 +13,9 @@ Convention (see PRD "분할 규칙"):
   becomes four side-by-side tiles, not 2x2).
 * Every other factor pair stays available as an alternative, ordered by how
   close to square its tiles are; very thin strips come last, marked "rare".
+* Every tile is enlarged with its shape kept, as far as it fits inside the
+  size of the original picture - upright, or turned by 90 degrees when the
+  tile gets larger that way (see :func:`scale_factor`).
 """
 from __future__ import annotations
 
@@ -99,19 +102,40 @@ def recommended_layout(n: int, width: float, height: float) -> Layout:
     return min(pairs, key=lambda l: (round(_balance(l), 9), oriented(l)))
 
 
-def scale_factor(layout: Layout) -> int:
-    """How many times a tile is enlarged so it fits the original size.
+def scale_factor(layout: Layout, width: float, height: float) -> float:
+    """How many times a tile is enlarged.
 
-    A tile is ``W/cols x H/rows``.  Growing it with its aspect ratio kept until
-    it touches the original ``W x H`` box means multiplying by ``min(rows, cols)``.
+    A tile is ``W/cols x H/rows``.  It keeps its aspect ratio and grows as far
+    as it fits inside the size of the original picture, where that box may also
+    be turned by 90 degrees when this allows a larger tile (the two halves of a
+    landscape photo are portrait: each fills a portrait sheet of the original's
+    size, but would not grow at all inside the landscape one).
+
+    * inside ``W x H``:          ``min(cols, rows)``
+    * inside ``H x W`` (turned): ``min(cols * H / W, rows * W / H)``
+
+    The larger of the two counts and a tile is never made smaller (at least 1).
+    For a square grid (rows == cols) this is exactly ``rows``: the tile gets the
+    original size.
     """
-    return min(layout.rows, layout.cols)
+    upright = min(layout.cols, layout.rows)
+    turned = min(layout.cols * height / width, layout.rows * width / height)
+    return float(max(1.0, upright, turned))
 
 
 def output_size(layout: Layout, width: int, height: int) -> tuple[int, int]:
-    """Pixel size of every enlarged tile (aspect ratio preserved)."""
-    s = scale_factor(layout)
+    """Pixel size of every enlarged tile (aspect ratio preserved, see :func:`scale_factor`)."""
+    s = scale_factor(layout, width, height)
     return (max(1, round(width * s / layout.cols)), max(1, round(height * s / layout.rows)))
+
+
+def is_original_size(out_w: int, out_h: int, width: int, height: int) -> bool:
+    """True when a tile of this size is as large as the original picture, upright or turned
+    by 90 degrees (rounding may cost a pixel)."""
+    def same(w: int, h: int) -> bool:
+        return abs(out_w - w) <= 1 and abs(out_h - h) <= 1
+
+    return same(width, height) or same(height, width)
 
 
 def is_usable(layout: Layout, width: int, height: int) -> bool:
@@ -125,8 +149,11 @@ def layouts_for(n: int, width: int, height: int) -> list[dict]:
     Each entry is JSON-friendly::
 
         {"rows": 2, "cols": 3, "key": "3x2", "recommended": True, "usable": True,
-         "tile_w": 1333.3, "tile_h": 1500.0, "out_w": 2667, "out_h": 3000,
-         "fills_original": False, "scale": 2}
+         "tile_w": 1344.0, "tile_h": 1512.0, "out_w": 3024, "out_h": 3402,
+         "fills_original": False, "scale": 2.25}
+
+    (a 4032 x 3024 photo: the tile grows 2.25 times, into the turned 3024 x 4032 box).
+    ``scale`` is rounded to 4 decimals.
     """
     best = recommended_layout(n, width, height)
 
@@ -152,9 +179,10 @@ def layouts_for(n: int, width: int, height: int) -> list[dict]:
                 "tile_h": height / layout.rows,
                 "out_w": out_w,
                 "out_h": out_h,
-                "scale": scale_factor(layout),
-                # True when the enlarged tile is exactly the original size (rows == cols)
-                "fills_original": layout.rows == layout.cols,
+                "scale": round(scale_factor(layout, width, height), 4),
+                # True when the enlarged tile is as large as the original picture, upright
+                # (every square grid) or turned by 90 degrees
+                "fills_original": is_original_size(out_w, out_h, width, height),
                 # very long, thin tiles: offered, but not what people usually want
                 "rare": layout != best and _elongation(_tile_aspect(layout, width, height))
                 > max(RARE_TILE_RATIO, _elongation(width / height) * 1.001),

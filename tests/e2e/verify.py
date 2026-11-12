@@ -225,8 +225,20 @@ def verify_outputs(source_path: str, files: dict[str, bytes], *, rows: int, cols
                 problems.append(f"docx page {section.page_width.mm:.1f}x{section.page_height.mm:.1f} mm, expected "
                                 f"{page['page_w']:.1f}x{page['page_h']:.1f}")
             xml = archive.read("word/document.xml").decode("utf-8")
-            if xml.count("<wp:anchor ") != count or xml.count("<w:pageBreakBefore/>") != count - 1:
-                problems.append("docx: wrong number of anchored pictures / page breaks")
+            if xml.count("<wp:inline ") != count or "<wp:anchor" in xml or xml.count("<w:pageBreakBefore/>") != count - 1:
+                problems.append("docx: wrong number of pictures in the line / page breaks")
+            # the margins put the picture at its place; the text area must hold it without scaling
+            if abs(section.left_margin.mm - page["x"]) > 0.2 or abs(section.top_margin.mm - page["y"]) > 0.2:
+                problems.append(f"docx: picture at {section.left_margin.mm:.1f},{section.top_margin.mm:.1f} mm, "
+                                f"expected {page['x']:.1f},{page['y']:.1f}")
+            room_w = section.page_width.mm - section.left_margin.mm - section.right_margin.mm
+            room_h = section.page_height.mm - section.top_margin.mm - section.bottom_margin.mm
+            if room_w < page["w"] - 0.05 or room_h < page["h"] - 0.05:
+                problems.append(f"docx: text area {room_w:.1f}x{room_h:.1f} mm is smaller than the picture")
+            sizes = set(re.findall(r'<wp:extent cx="(\d+)" cy="(\d+)"/>', xml))
+            want = (round(page["w"] * 36000), round(page["h"] * 36000))
+            if len(sizes) != 1 or max(abs(int(a) - b) for a, b in zip(next(iter(sizes)), want)) > 80:
+                problems.append(f"docx: picture size {sizes}, expected {want} EMU")
             order = re.findall(r'r:embed="rId(\d+)"', xml)
             if order != [str(i + 10) for i in range(count)]:
                 problems.append(f"docx: picture order {order}")

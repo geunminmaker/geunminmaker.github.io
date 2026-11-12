@@ -23,12 +23,15 @@ export function pickerSheet() {
 
 /**
  * Add to Home Screen steps for iPhone and iPad.
- * @param {{inSafari: boolean, modern: boolean}} options  modern = Safari 26 or later (Share sits behind "...")
+ * @param {{inSafari: boolean, modern: boolean, ipad: boolean}} options  modern = Safari 26 or later (Share sits
+ *        behind "..."); ipad = the toolbar with Share is at the top
  */
-export function installSheetIOS({ inSafari, modern }) {
+export function installSheetIOS({ inSafari, modern, ipad = false }) {
   const items = [];
   if (!inSafari) items.push(["Safari에서 이 페이지를 열어요", "다른 브라우저나 앱 안에서는 추가하지 못할 수 있어요."]);
-  if (modern) {
+  if (ipad) {
+    items.push([`위쪽 ${key("share")} 공유 버튼을 눌러요`, `버튼이 안 보이면 ${key("more")}를 먼저 눌러 보세요.`]);
+  } else if (modern) {
     items.push([`아래쪽 ${key("more")} 다음에 ${key("share")} 공유를 눌러요`, "공유 버튼이 바로 보이면 그것만 눌러도 돼요."]);
   } else {
     items.push([`아래쪽 ${key("share")} 공유 버튼을 눌러요`, "버튼이 안 보이면 화면을 살짝 내려 보세요."]);
@@ -47,7 +50,7 @@ export function installSheetIOS({ inSafari, modern }) {
 export function installSheetAndroid({ canPrompt }) {
   const items = canPrompt
     ? [
-      ["아래 ‘앱 설치하기’를 눌러요", "Chrome이나 삼성 인터넷에서 열었을 때 눌러져요."],
+      ["아래 ‘앱 설치하기’를 눌러요", "누르면 설치 창이 떠요."],
       ["설치 창에서 ‘설치’를 눌러요", "홈 화면과 앱 서랍에 아이콘이 생겨요."],
       [`창이 안 뜨면 ${key("more-v")} 메뉴를 열어요`, "‘홈 화면에 추가’나 ‘앱 설치’를 고르면 돼요."],
     ]
@@ -63,7 +66,7 @@ export function installSheetAndroid({ canPrompt }) {
     name: "install",
     title: "홈 화면에 추가하면\n앱처럼 바로 열려요",
     body: steps(items),
-    foot: primary + `<a class="btn btn--ghost" href="${APK_URL}" rel="noopener" data-action="apk">설치 파일(APK)로 받기</a>`,
+    foot: primary + `<a class="btn btn--ghost" href="${APK_URL}" target="_blank" rel="noopener" data-action="apk">설치 파일(APK)로 받기</a>`,
   };
 }
 

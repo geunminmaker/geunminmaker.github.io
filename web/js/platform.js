@@ -7,13 +7,15 @@ const ua = navigator.userAgent || "";
 export const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 export const isAndroid = /Android/i.test(ua);
 export const isDesktop = !isIOS && !isAndroid;
+/** iPad: Safari keeps its toolbar (with Share) at the top. */
+export const isIPad = /iPad/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 function detectStandalone() {
   let twa = false;
   try {
     // A Trusted Web Activity only shows its referrer on the first navigation, so remember it.
     twa = sessionStorage.getItem("jj.twa") === "1";
-    if (!twa && document.referrer.startsWith("android-app://")) {
+    if (!twa && document.referrer.startsWith("android-app://io.github.geunminmaker.splitimage")) {
       twa = true;
       sessionStorage.setItem("jj.twa", "1");
     }
@@ -180,7 +182,7 @@ function giveUpOnWorker() {
 }
 
 /** Resolves true once the service worker controls this page; false when there is none or after `limit` ms. */
-export function whenControlled(limit = 4000) {
+export function whenControlled(limit = 15000) {
   if (!("serviceWorker" in navigator) || noWorker) return Promise.resolve(false);
   if (navigator.serviceWorker.controller) return Promise.resolve(true);
   return new Promise((resolve) => {
@@ -199,9 +201,11 @@ export function whenControlled(limit = 4000) {
 }
 
 /**
- * @param {{onUpdate: () => void}} hooks  onUpdate fires when a new version is waiting
+ * @param {{onUpdate: () => void, onTakeover?: () => void}} hooks
+ *        onUpdate fires when a new version is waiting; onTakeover when another tab switched this
+ *        page to a new version without asking it
  */
-export function registerServiceWorker({ onUpdate }) {
+export function registerServiceWorker({ onUpdate, onTakeover }) {
   if (!("serviceWorker" in navigator)) return;
   const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   if (local && /[?&]nosw\b/.test(location.search)) {
@@ -209,18 +213,24 @@ export function registerServiceWorker({ onUpdate }) {
     return;
   }
 
+  const hadController = Boolean(navigator.serviceWorker.controller);
   let reloaded = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    // The first install also changes the controller (clients.claim); only reload for an update the user asked for.
-    if (!reloadOnTakeover || reloaded) return;
-    reloaded = true;
-    location.reload();
+    if (reloaded) return;
+    if (reloadOnTakeover) {  // the update this tab asked for
+      reloaded = true;
+      location.reload();
+    } else if (hadController && onTakeover) {
+      onTakeover();  // (the first install also changes the controller, but then there was none before)
+    }
   });
 
   const watch = (worker) => {
     if (!worker) return;
     worker.addEventListener("statechange", () => {
       if (worker.state === "installed" && navigator.serviceWorker.controller) onUpdate();
+      // the install failed: start the engine without waiting for a worker that will not come
+      if (worker.state === "redundant" && !navigator.serviceWorker.controller) giveUpOnWorker();
     });
   };
 
@@ -270,11 +280,12 @@ export function precacheEngine(used = []) {
   }).catch(() => {});
 }
 
-/** Ask the browser not to evict our caches.  Asked once, the answer does not matter. */
+/** Ask the browser not to evict our caches: once in the browser and once more as an installed app (which is more likely to get a yes). */
 export function persistStorage() {
+  const key = isStandalone ? "jj.persist.app" : "jj.persist";
   try {
-    if (localStorage.getItem("jj.persist") === "1") return;
-    localStorage.setItem("jj.persist", "1");
+    if (localStorage.getItem(key) === "1") return;
+    localStorage.setItem(key, "1");
   } catch (error) { /* ask anyway */ }
   try {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});

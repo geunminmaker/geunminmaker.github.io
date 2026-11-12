@@ -168,11 +168,26 @@ const handlers = {
     const wanted = packages.filter((name) => !(pyodide.loadedPackages && pyodide.loadedPackages[name]));
     if (!wanted.length) return { result: { loaded: [] } };
     const close = openScope(id, "package", bytes);
+    // A download that stops half-way (a tunnel, a switch between Wi-Fi and mobile data) would wait
+    // for ever: give up when not a single byte arrived between two checks.  The page uses a fresh
+    // worker for the next try, because the abandoned download keeps this one's loader busy.
+    let watch = 0;
+    const stalled = new Promise((resolve, reject) => {
+      let seen = -1;
+      watch = setInterval(() => {
+        const now = scope ? scope.loaded : seen;
+        if (now === seen) reject(engineError("OFFLINE", "", "package download stalled"));
+        seen = now;
+      }, 45000);
+    });
+    stalled.catch(() => {});
     try {
-      await pyodide.loadPackage(wanted, { messageCallback: log, errorCallback: log });
+      await Promise.race([pyodide.loadPackage(wanted, { messageCallback: log, errorCallback: log }), stalled]);
     } catch (error) {
+      if (error && error.engine) throw error;
       throw engineError("OFFLINE", "", `package download failed: ${String((error && error.message) || error).slice(0, 200)}`);
     } finally {
+      clearInterval(watch);
       close();
     }
     // loadPackage reports a failed download through errorCallback only: check what arrived

@@ -39,7 +39,7 @@ export function homeNotices({ inApp, updateReady }) {
 // ---------------------------------------------------------------------------
 // Notices shared by several screens
 // ---------------------------------------------------------------------------
-/** "N files could not be opened" (with names and reasons) and "only the first 300". */
+/** "N files could not be opened" (with names and reasons) and "only the first part" (300 pictures or pages, 60 TIFF frames). */
 export function notices(failures, truncated) {
   let html = "";
   const count = failures.length;
@@ -49,8 +49,8 @@ export function notices(failures, truncated) {
     html += `<div class="notice notice--plain">${ic("info")}<div class="notice__t"><b>${count}개 파일은 열 수 없었어요</b>${shown}${more}</div></div>`;
   }
   if (truncated) {
-    html += `<div class="notice notice--plain">${ic("info")}<div class="notice__t"><b>처음 300장만 가져왔어요</b>`
-      + "<small>한 번에 300장까지 보여 드려요. 찾는 장이 없으면 파일을 나눠서 다시 골라 주세요.</small></div></div>";
+    html += `<div class="notice notice--plain">${ic("info")}<div class="notice__t"><b>앞쪽 일부만 가져왔어요</b>`
+      + "<small>한 번에 보여 드릴 수 있는 수를 넘었어요. 찾는 장이 없으면 파일을 나눠서 다시 골라 주세요.</small></div></div>";
   }
   return html;
 }
@@ -62,7 +62,7 @@ export function noticesSpoken(failures, truncated) {
     parts.push(`${failures.length}개 파일은 열 수 없었어요. `
       + failures.map((item) => `${item.name}: ${failureReason(item.code)}`).join(", "));
   }
-  if (truncated) parts.push("처음 300장만 가져왔어요.");
+  if (truncated) parts.push("앞쪽 일부만 가져왔어요.");
   return parts.join(" ");
 }
 
@@ -118,18 +118,18 @@ function thumbSections(sources) {
 const unitText = (items) => {
   if (items.every((item) => item.kind === "page")) return `${items.length}쪽`;
   if (items.every((item) => item.kind === "image" && item.label === item.origin)) return `${items.length}장`;
-  return `이미지 ${items.length}개`;
+  return `이미지 ${items.length}장`;
 };
 
 function pickLead(sections, total, fileCount) {
   if (sections.length === 1 && !sections[0].cover) {
     const items = sections[0].items;
     const name = `<b>${esc(items[0].origin)}</b>`;
-    if (items.every((item) => item.kind === "page")) return `${name} · ${total}쪽 중에서 한 장만 골라 주세요.`;
-    return `${name}에 들어 있는 이미지 ${total}개 중에서 하나만 골라 주세요.`;
+    if (items.every((item) => item.kind === "page")) return `${name} · ${total}쪽 중에서 한 쪽만 골라 주세요.`;
+    return `${name}에 들어 있는 이미지 ${total}장 중에서 한 장만 골라 주세요.`;
   }
   if (sections.length === 1) return `불러온 사진 ${total}장 중에서 한 장만 골라 주세요.`;
-  return `불러온 파일 ${fileCount}개에서 찾은 이미지 ${total}개 중에서 하나만 골라 주세요.`;
+  return `불러온 파일 ${fileCount}개에서 찾은 이미지 ${total}장 중에서 한 장만 골라 주세요.`;
 }
 
 function thumbGrid(section, pickId) {
@@ -178,6 +178,7 @@ export function confirmScreen({ source, alone, fileSize, image, notices: noticeH
     if (paper) facts.push(paper);
   }
   if (fileSize != null) facts.push(formatBytes(fileSize));
+  if (source.reduced_from) facts.push("원본이 아주 커서 줄여서 열었어요");
   return '<section class="screen confirm"><h1 class="h1" tabindex="-1">이 이미지가 맞나요?</h1>'
     + `<figure class="stage" data-css="${stageCss(source)}"><div class="stage__fit">${image}</div></figure>`
     + `<div class="meta"><b>${esc(title)}</b><span>${facts.join(" · ")}</span></div>${noticeHtml}`
@@ -223,8 +224,12 @@ export function splitDock(layout) {
 /** The line under the preview.  `plan` is the engine's plan for this layout once it has answered. */
 export function splitCaption(layout, plan) {
   if (!layout) return "조각 수를 고르면 나누는 선이 보여요";
-  const size = plan ? px(plan.out_w, plan.out_h) : px(layout.out_w, layout.out_h);
-  return `조각마다 ${size}로 키워 드려요${plan && plan.capped ? " · 원본이 아주 커서 조각 크기를 줄였어요" : ""}`;
+  const info = plan || layout;
+  const size = px(info.out_w, info.out_h);
+  if (plan && plan.capped) return `조각마다 ${size} · 원본이 아주 커서 조각 크기를 줄였어요`;
+  // a strip that already spans the picture cannot grow inside the original size
+  if (!(info.scale > 1.001)) return `조각마다 ${size} · 이 모양은 더 키울 수 없어요`;
+  return `조각마다 ${size}로 키워 드려요`;
 }
 
 // ---------------------------------------------------------------------------

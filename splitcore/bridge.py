@@ -10,7 +10,7 @@ from __future__ import annotations
 import traceback
 
 from . import __version__, imaging, loaders
-from .errors import SplitError
+from .errors import SplitError, is_out_of_memory
 from .export import FORMATS
 from .grids import SPLIT_COUNTS
 from .session import Session
@@ -143,4 +143,8 @@ def dispatch(method: str, js_args=None, js_callbacks=None) -> dict:
         return {"ok": False, "error": SplitError("INTERNAL", detail=f"missing package: {exc}").to_dict()}
     except Exception as exc:  # noqa: BLE001 - nothing may escape to JS as a raw traceback
         tail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)[-3:])
-        return {"ok": False, "error": SplitError("INTERNAL", detail=tail[-600:]).to_dict()}
+        # A JavaScript allocation that failed inside a callback (a finished file being copied out
+        # of the heap) arrives here as an ordinary error: the page must still be told that memory
+        # ran out, because only then it starts a fresh worker.
+        code = "OUT_OF_MEMORY" if is_out_of_memory(exc) else "INTERNAL"
+        return {"ok": False, "error": SplitError(code, detail=tail[-600:]).to_dict()}

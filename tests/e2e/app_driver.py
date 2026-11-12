@@ -71,7 +71,7 @@ class AppDriver:
 
     def wait_screen(self, *names: str, timeout: float = 180_000) -> str:
         self.page.wait_for_function("names => names.includes(document.body.dataset.screen)", arg=list(names), timeout=timeout)
-        self.page.wait_for_timeout(350)  # let the enter transition finish before the next tap / screenshot
+        self.page.wait_for_timeout(400)  # let the enter transition finish (and the double-tap guard pass)
         return self.screen
 
     def click(self, selector: str, timeout: float = 15_000) -> None:

@@ -123,6 +123,20 @@ bash tools/build_apk.sh
 - 확인된 조합: Gradle 8.13, Android Gradle Plugin 8.13.2, compileSdk 36, Build-Tools 35.0.0,
   androidbrowserhelper 2.7.4.
 
+### 만든 APK 올리기
+
+앱의 "설치 파일(APK)로 받기" 버튼과 설치 안내는 GitHub 릴리스의 최신 파일을 가리킵니다.
+`https://github.com/geunminmaker/geunminmaker.github.io/releases/latest/download/jogakjogak.apk`
+
+새 APK를 만들면 릴리스를 새로 올려야 이 주소에서 받을 수 있습니다. 파일 이름은 반드시 `jogakjogak.apk` 여야 합니다.
+
+```
+gh release create v1.0.1 android/dist/jogakjogak.apk --repo geunminmaker/geunminmaker.github.io --title "조각조각 1.0.1"
+```
+
+`v1.0.0` 은 2026-11-13 에 올렸습니다. APK는 앱 화면을 담고 있지 않으므로(웹 주소를 여는 껍데기),
+앱 내용이 바뀔 때마다 다시 만들 필요는 없습니다. 아이콘·이름·주소를 바꿀 때만 새로 만듭니다.
+
 ## 5. 아이콘, 시작 화면, 색 바꾸기
 
 1. 원본 그림을 바꿉니다.

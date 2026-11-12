@@ -16,10 +16,13 @@ MAX_PICTURES = 300
 MAX_PICTURE_BYTES = 150 * 1024 * 1024
 
 HINT_NO_PICTURE = (
-    "문서에서 사진이나 그림을 찾지 못했어요. 글자와 도형으로 만든 문서라면 "
-    "PDF로 저장(내보내기)한 뒤 그 PDF를 올려 주세요."
+    "문서에서 이미지를 찾지 못했어요. 글자와 도형으로 만든 문서라면 "
+    "PDF로 저장(내보내기)한 뒤 그 PDF를 골라 주세요."
 )
-HINT_PASSWORD_DOC = "암호가 걸린 문서는 열 수 없어요. 암호를 해제해서 다시 저장한 뒤 올려 주세요."
+HINT_PASSWORD_DOC = "암호가 걸린 문서는 열 수 없어요. 암호를 해제해서 다시 저장한 뒤 골라 주세요."
+
+#: picture kinds this build may be unable to decode -> how they are called in a message
+_KIND_NAMES = {"heic": "HEIC", "avif": "AVIF", "jp2": "JPEG 2000"}
 
 IMAGE_EXTENSIONS = {
     "jpg", "jpeg", "jpe", "jfif", "png", "gif", "bmp", "dib", "tif", "tiff", "webp",
@@ -49,7 +52,9 @@ class PictureCollector:
     * identical pictures are kept once;
     * pictures that cannot be decoded here (metafiles, damaged data) are counted
       and skipped instead of failing the whole document;
-    * tiny decorations are dropped unless they are all there is.
+    * tiny decorations are dropped unless they are all there is;
+    * after MAX_PICTURES pictures the rest is only counted, and the first source
+      carries ``origin_total`` so the list is reported as cut short.
     """
 
     def __init__(self, origin: str, group: str | None = None, numbered: bool = False):
@@ -62,7 +67,10 @@ class PictureCollector:
         self._seen: set[str] = set()
         self.skipped_vector = 0
         self.skipped_unreadable = 0
-        self.undecodable: list[tuple[str, bytes, str]] = []
+        #: (label, kind) of pictures in a format this build cannot decode (HEIC, AVIF, JPEG 2000)
+        self.undecodable: list[tuple[str, str]] = []
+        #: pictures that were offered after the list was full (not looked at)
+        self.turned_away = 0
 
     @property
     def full(self) -> bool:
@@ -70,7 +78,11 @@ class PictureCollector:
 
     def add(self, data: bytes, label: str) -> bool:
         """Offer one blob.  Returns True when it became a candidate."""
-        if self.full or not data or len(data) > MAX_PICTURE_BYTES:
+        if self.full:
+            if data:
+                self.turned_away += 1
+            return False
+        if not data or len(data) > MAX_PICTURE_BYTES:
             return False
         digest = hashlib.sha1(data).hexdigest()
         if digest in self._seen:
@@ -86,9 +98,9 @@ class PictureCollector:
         try:
             sources = [RasterSource(data, label=label, origin=self.origin, group=self.group, kind="embedded")]
         except SplitError as exc:
-            if exc.code == "UNSUPPORTED" and kind in ("heic", "avif", "jp2"):
-                # the web app may be able to decode these with the browser
-                self.undecodable.append((label, data, kind))
+            if exc.code == "UNSUPPORTED" and kind in _KIND_NAMES:
+                # a real picture, only not decodable here (see result())
+                self.undecodable.append((label, kind))
             self.skipped_unreadable += 1
             return False
         for source in sources:
@@ -102,12 +114,28 @@ class PictureCollector:
             if self.numbered:
                 for index, source in enumerate(sources, 1):
                     source.label = f"이미지 {index}"
+            if self.turned_away:
+                # read by Session.add_file: the list was cut short.  The pictures that were turned
+                # away were not looked at, so the total is how many there were at most.
+                sources[0].origin_total = len(sources) + self.turned_away
             return sources
         detail = f"vector={self.skipped_vector} unreadable={self.skipped_unreadable}"
         if self.skipped_vector and not self.skipped_unreadable:
             raise SplitError(
                 "NO_IMAGE",
-                "문서 속 그림이 벡터(EMF/WMF) 형식이라 꺼낼 수 없어요. PDF로 저장한 뒤 그 PDF를 올려 주세요.",
+                "문서 속 그림이 벡터(EMF/WMF) 형식이라 꺼낼 수 없어요. PDF로 저장한 뒤 그 PDF를 골라 주세요.",
                 detail=detail,
+            )
+        kinds = sorted({kind for _label, kind in self.undecodable})
+        if "heic" in kinds and imaging.heif_missing():
+            # there are pictures, only their decoder is an optional package that is not here yet:
+            # the web app loads the package named in ``detail`` and opens the file once more
+            raise SplitError("NEED_PACKAGE", detail="pillow-heif")
+        if kinds:
+            names = "/".join(_KIND_NAMES[kind] for kind in kinds)
+            raise SplitError(
+                "NO_IMAGE",
+                f"파일 안의 사진이 {names} 형식이라 꺼낼 수 없어요. 사진을 따로 저장한 뒤 그 사진 파일을 직접 골라 주세요.",
+                detail=f"{detail} undecodable={','.join(kinds)}",
             )
         raise SplitError("NO_IMAGE", empty_hint, detail=detail)

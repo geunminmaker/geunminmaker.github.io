@@ -234,6 +234,9 @@ class App:
 
     def wait_screen(self, *names: str, timeout: float = 180_000) -> str:
         self.page.wait_for_function("names => names.includes(document.body.dataset.screen)", arg=list(names), timeout=timeout)
+        # a person needs a moment to see a new screen; the app ignores taps on the action area for
+        # 300 ms after it changed (the second tap of a double tap must not press the new button)
+        self.page.wait_for_timeout(330)
         return self.screen
 
     def settle(self, ms: int = 350) -> None:
@@ -436,7 +439,7 @@ def flow_photo_pdf(a: App) -> None:
     verify(g, "PDF content verified", PHOTO, files, rows=3, cols=3, fmt="pdf")
     check(g, "export state ready", a.export_state == "ready")
     a.settle(200)
-    expected = "공유 창을 열었어요" if a.profile == "iphone" else "저장했어요 · " + next(iter(files))
+    expected = "내보냈어요" if a.profile == "iphone" else "저장했어요 · " + next(iter(files))
     check(g, "toast text in role=status", expected in a.status(), a.status())
     if a.profile == "iphone":
         share = a.last_share
@@ -492,7 +495,7 @@ def flow_docx_word(a: App) -> None:
     page = a.page
     screen = a.open(DOCX2)
     check(g, "DOCX with two pictures opens the thumbnail screen", screen == "pick" and page.locator("[data-source]").count() == 2, screen)
-    check(g, "lead says the pictures are inside the file", "들어 있는 이미지 2개" in page.inner_text(".lead"), page.inner_text(".lead"))
+    check(g, "lead says the pictures are inside the file", "들어 있는 이미지 2장" in page.inner_text(".lead"), page.inner_text(".lead"))
     page.locator("[data-source]").nth(1).click()
     a.act("next").click()
     a.wait_screen("confirm")
@@ -935,6 +938,7 @@ def extra_desktop(playwright, browsers, base: str) -> None:
         page.wait_for_function("() => document.body.dataset.screen === 'confirm' && document.querySelector('.meta').textContent.includes('image.webp')", timeout=60_000)
         check(g, "Ctrl+V with a picture starts over with it", True)
         # keyboard: arrows move inside a radio group, one tab stop per group
+        app.settle()  # the action area ignores taps for 300 ms after it changed
         app.act("confirm-yes").click()
         app.wait_screen("split")
         check(g, "focus on the headline after the screen change", page.evaluate("document.activeElement.classList.contains('h1')"))
@@ -984,8 +988,8 @@ def extra_big_pdf(playwright, browsers, base: str) -> None:
         check(g, "opens the thumbnail screen with 300 candidates", screen == "pick" and page.locator("[data-source]").count() == 300,
               f"{screen} {page.locator('[data-source]').count()}")
         text = page.inner_text("#view")
-        check(g, "says that only the first 300 were taken (screen and role=status)", "처음 300장만 가져왔어요" in text
-              and "처음 300장만" in app.status(), app.status())
+        check(g, "says that only the first 300 were taken (screen and role=status)", "앞쪽 일부만 가져왔어요" in text
+              and "앞쪽 일부만" in app.status(), app.status())
         app.settle(2500)
         loaded = page.locator(".thumb img.is-in").count()
         check(g, "only thumbnails near the viewport were made", 3 <= loaded <= 45, str(loaded))
@@ -1073,7 +1077,7 @@ def extra_android_share(playwright, browsers, base: str) -> None:
               len(shared["files"]) == 9 and all(item["name"].endswith(".jpg") and item["type"] == "image/jpeg" for item in shared["files"])
               and shared["keys"] == ["files"] and shared["inTap"], str([item["name"] for item in shared["files"]][:3]))
         app.settle(300)
-        check(g, "toast says the share sheet was opened", "공유 창을 열었어요" in app.status(), app.status())
+        check(g, "toast says the share sheet was opened", "내보냈어요" in app.status(), app.status())
         # the same build also saves: as one ZIP, made on demand
         with page.expect_download(timeout=30_000) as info:
             app.act("save").click()
@@ -1167,7 +1171,7 @@ def extra_activation_expired(playwright, browsers, base: str) -> None:
         page.evaluate("window.__shareOutcome = ''")
         app.act("save").click()
         app.settle(500)
-        check(g, "then a normal share goes through", "공유 창을 열었어요" in app.status(), app.status())
+        check(g, "then a normal share goes through", "내보냈어요" in app.status(), app.status())
     finally:
         finish(app, context, g + " ios")
 
@@ -1190,7 +1194,7 @@ def extra_service_worker(playwright, browsers, base: str) -> None:
         missing = [name for name in os.listdir(os.path.join(WEB, "js")) if f'"js/{name}"' not in stamped]
         if "index.html" in stamped and not missing:
             engine_files = page.evaluate(
-                "() => fetch('sw.js').then((r) => r.text()).then((t) => JSON.parse(t.split('const ENGINE = ')[1].split(';')[0]).length)")
+                "() => fetch('sw.js').then((r) => r.text()).then((t) => Object.keys(JSON.parse(t.split('const ENGINE = ')[1].split(';')[0])).length)")
             stored = 0
             deadline = time.time() + 180
             while time.time() < deadline:

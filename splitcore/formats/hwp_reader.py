@@ -93,7 +93,7 @@ class HwpPasswordError(HwpProtectedError):
     """The document is encrypted with a password."""
     code = "hwp_password"
     user_message = ("암호가 걸린 문서입니다. "
-                    "한글에서 암호를 해제한 뒤 다시 올려 주세요.")
+                    "한글에서 암호를 해제한 뒤 다시 골라 주세요.")
 
 
 class HwpDrmError(HwpProtectedError):
@@ -106,7 +106,7 @@ class HwpDistributionError(HwpProtectedError):
     """The document is a distribution ("배포용") document: copying its content is restricted."""
     code = "hwp_distribution"
     user_message = ("배포용 문서는 내용을 가져올 수 없습니다. "
-                    "원본 문서나 이미지 파일을 올려 주세요.")
+                    "원본 문서나 이미지 파일을 골라 주세요.")
 
 
 class HwpNoImagesError(HwpError):
@@ -130,7 +130,7 @@ class HwpNoImagesError(HwpError):
         super().__init__(message, linked=self.linked, skipped=self.skipped)
         if self.linked:
             self.user_message = ("그림이 문서에 포함되지 않고 연결(링크)만 되어 있습니다. "
-                                 "한글에서 '문서에 포함'으로 다시 저장하거나 이미지 파일을 직접 올려 주세요.")
+                                 "한글에서 '문서에 포함'으로 다시 저장하거나 이미지 파일을 직접 골라 주세요.")
         elif self.skipped:
             self.user_message = ("문서에 사용할 수 있는 그림이 없습니다. "
                                  "(OLE 개체나 WMF/EMF 그림은 지원하지 않습니다.)")

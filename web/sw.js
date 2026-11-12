@@ -8,12 +8,14 @@
 //    Each file is stored under its content hash: a file that changed in a new
 //    build is fetched again, the others are reused, and a response that is not
 //    exactly the file of this build is never stored.
+//  * A new build fetches the changed engine files this device already keeps
+//    while it installs, so the first start after an update also works offline.
 //
 // The block below is rewritten by tools/build_web.py.
 /* BUILD:START */
-const BUILD = "c6b364b3aa0f";
+const BUILD = "eb7b84b444cb";
 const SHELL = ["assets.json", "css/base.css", "css/components.css", "css/demo.svg", "css/screens.css", "css/tokens.css", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/favicon.svg", "icons/icon-1024.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-192.png", "icons/icon-maskable-512.png", "index.html", "js/app.js", "js/copy.js", "js/engine.js", "js/platform.js", "js/save.js", "js/screens.js", "js/ui-grid.js", "js/ui-sheets.js", "js/ui.js", "js/zip.js", "licenses.html", "manifest.webmanifest", "worker/engine.worker.mjs"];
-const ENGINE = {"py/splitcore.zip": "2608767b1de68a6a8eabd370694e32c225ac904d272c97f12c325375f241a213", "vendor/pyodide/olefile-0.47-py2.py3-none-any.whl": "a7ae597c79e7d4e9bd9a8bf365e8356647b88d7916f76c2f6fcf0c735421a1f4", "vendor/pyodide/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl": "e60a2a2322a058db0070720fa1da8e2e76efb86c150bcebb352a62fdc7a237be", "vendor/pyodide/pillow_heif-1.3.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl": "8698acc6d9ee3a4cb487d4ad766db6c9e80c27192f7bc8eb565ce8a40a434090", "vendor/pyodide/pymupdf-1.27.2.2-cp314-abi3-pyemscripten_2026_0_wasm32.whl": "1d46849a43b48c59358c3f5cf2f237195c4b20e91228a4a4860746abbc7dff2c", "vendor/pyodide/pyodide-lock.json": "b50276737c6fd82c89d69ab8dc37496aa9d9071f1e098d81ba86b3af8356841f", "vendor/pyodide/pyodide.asm.mjs": "f7cdc8ece80678ceb712f8e65ebe6d3a83203a180c399865f49612a051693635", "vendor/pyodide/pyodide.asm.wasm": "cc36e3cab04fdfc9a63ff13eb52eae2b911bf46c025cc7b281f394bd3de1d5e6", "vendor/pyodide/pyodide.mjs": "6f1d60f7bf529beb300f0f47983c921d3982363640ba20af0e38efdddbc66109", "vendor/pyodide/python_stdlib.zip": "ea6bca51ea8b6690cff30ead78a6486096c8b769027b936d0e965a10360fadba"};
+const ENGINE = {"py/splitcore.zip": "3307536bac1942c2f77b3c32970ab409b9c6c774c0a12d4f17ab6440c3ae9eda", "vendor/pyodide/olefile-0.47-py2.py3-none-any.whl": "a7ae597c79e7d4e9bd9a8bf365e8356647b88d7916f76c2f6fcf0c735421a1f4", "vendor/pyodide/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl": "e60a2a2322a058db0070720fa1da8e2e76efb86c150bcebb352a62fdc7a237be", "vendor/pyodide/pillow_heif-1.3.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl": "8698acc6d9ee3a4cb487d4ad766db6c9e80c27192f7bc8eb565ce8a40a434090", "vendor/pyodide/pymupdf-1.27.2.2-cp314-abi3-pyemscripten_2026_0_wasm32.whl": "1d46849a43b48c59358c3f5cf2f237195c4b20e91228a4a4860746abbc7dff2c", "vendor/pyodide/pyodide-lock.json": "b50276737c6fd82c89d69ab8dc37496aa9d9071f1e098d81ba86b3af8356841f", "vendor/pyodide/pyodide.asm.mjs": "f7cdc8ece80678ceb712f8e65ebe6d3a83203a180c399865f49612a051693635", "vendor/pyodide/pyodide.asm.wasm": "cc36e3cab04fdfc9a63ff13eb52eae2b911bf46c025cc7b281f394bd3de1d5e6", "vendor/pyodide/pyodide.mjs": "6f1d60f7bf529beb300f0f47983c921d3982363640ba20af0e38efdddbc66109", "vendor/pyodide/python_stdlib.zip": "ea6bca51ea8b6690cff30ead78a6486096c8b769027b936d0e965a10360fadba"};
 /* BUILD:END */
 
 const SHELL_CACHE = `shell-${BUILD}`;
@@ -26,11 +28,28 @@ const ENGINE_KEYS = new Set(Object.keys(ENGINE).map(engineKey));
 const SHELL_URLS = new Set(SHELL.map(absolute));
 const INDEX_URL = absolute("index.html");
 
+/** ".../pillow-12.2.0-cp314-...whl" -> ".../pillow": the same package in another version. */
+function family(url) {
+  const clean = url.split("?")[0];
+  const cut = clean.lastIndexOf("/") + 1;
+  return clean.slice(0, cut) + clean.slice(cut).split("-")[0];
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(SHELL_CACHE);
     // "reload" bypasses the HTTP cache so a new build never mixes with stale files
     await cache.addAll(SHELL.map((path) => new Request(absolute(path), { cache: "reload" })));
+    // Engine files this device already keeps and that changed in this build are fetched now, so
+    // the first start under this build also works offline.  If one cannot be had the install
+    // fails and the previous build stays in charge; the browser tries again at the next visit.
+    const engine = await caches.open(ENGINE_CACHE);
+    const kept = new Set((await engine.keys()).map((request) => family(request.url)));
+    for (const path of Object.keys(ENGINE)) {
+      if (!kept.has(family(absolute(path))) || await engine.match(engineKey(path))) continue;
+      const fresh = await fetch(new Request(absolute(path), { cache: "no-cache" }));
+      if (fresh.status !== 200 || !(await storeEngine(path, fresh))) throw new Error(`engine file not ready: ${path}`);
+    }
   })());
 });
 
@@ -81,14 +100,45 @@ async function storeEngine(path, response) {
   }
 }
 
+// Engine files on their way right now (path -> promise of "stored"): the precache and the page
+// share one download instead of fetching the same 18 MB twice.
+const loading = new Map();
+
+/** Register a download.  Call with no await between the loading.has() check and this call. */
+function announce(path) {
+  let done;
+  const job = new Promise((resolve) => { done = resolve; });
+  loading.set(path, job);
+  job.then(() => { if (loading.get(path) === job) loading.delete(path); });
+  return done;
+}
+
 async function fromEngine(event, path) {
   const cache = await caches.open(ENGINE_CACHE);
-  const hit = await cache.match(engineKey(path));
+  let hit = await cache.match(engineKey(path));
   if (hit) return hit;
-  // "no-cache" = ask the server whether the browser's own copy is still current (a short
-  // exchange when it is).  Without it a copy from the previous build could be used for a while.
-  const response = await fetch(new Request(event.request, { cache: "no-cache" }));
-  if (response.status === 200) event.waitUntil(storeEngine(path, response.clone()));
+  if (loading.has(path)) {  // already being downloaded: wait for that one
+    await loading.get(path);
+    hit = await cache.match(engineKey(path));
+    if (hit) return hit;
+  }
+  const done = announce(path);
+  let response;
+  try {
+    // "no-cache" = ask the server whether the browser's own copy is still current (a short
+    // exchange when it is).  Without it a copy from the previous build could be used for a while.
+    response = await fetch(new Request(event.request, { cache: "no-cache" }));
+  } catch (error) {
+    done(false);
+    throw error;
+  }
+  if (response.status === 200) {
+    event.waitUntil(storeEngine(path, response.clone()).then(done));
+  } else {
+    done(false);
+    // a file this build expects is gone: the site has moved on to another build
+    if (response.status === 404) self.registration.update().catch(() => {});
+  }
   return response;
 }
 
@@ -103,6 +153,7 @@ async function precacheEngine({ files, network = true }, client) {
   const wanted = (Array.isArray(files) ? files : Object.keys(ENGINE)).filter(known);
   let done = 0;
   for (const path of wanted) {
+    if (loading.has(path)) await loading.get(path);
     if (await cache.match(engineKey(path))) {
       done += 1;
       continue;
@@ -114,11 +165,18 @@ async function precacheEngine({ files, network = true }, client) {
       if (local.status === 200) kept = await storeEngine(path, local);
     } catch (error) { /* not in the HTTP cache */ }
     if (!kept && network) {
-      try {
-        const fresh = await fetch(new Request(url, { cache: "no-cache" }));
-        if (fresh.status === 200) kept = await storeEngine(path, fresh);
-      } catch (error) {
-        break;  // offline: try again next time
+      if (loading.has(path)) {
+        kept = await loading.get(path);  // the page started it meanwhile
+      } else {
+        const stored = announce(path);
+        try {
+          const fresh = await fetch(new Request(url, { cache: "no-cache" }));
+          if (fresh.status === 200) kept = await storeEngine(path, fresh);
+        } catch (error) {
+          stored(false);
+          break;  // offline: try again next time
+        }
+        stored(kept);
       }
     }
     if (kept) done += 1;

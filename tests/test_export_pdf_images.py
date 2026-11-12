@@ -46,20 +46,23 @@ def session():
 
 
 @pytest.mark.parametrize("fmt,ext,pil", [("jpg", "jpg", "JPEG"), ("png", "png", "PNG"), ("jpeg", "jpg", "JPEG")])
-@pytest.mark.parametrize("rows,cols", [(3, 3), (2, 3), (4, 4)])
-def test_image_export(session, fmt, ext, pil, rows, cols):
+@pytest.mark.parametrize("rows,cols,size", [
+    (3, 3, (600, 400)), (4, 4, (600, 400)),  # square grids: the original size
+    (2, 3, (400, 400)),                      # 200 x 200 cells, twice
+    (1, 2, (400, 533)),                      # portrait halves grow into the turned 400 x 600 box
+])
+def test_image_export(session, fmt, ext, pil, rows, cols, size):
     w, h = 600, 400
     sid = session.add_file("포스터 사진.png", to_bytes(poster(w, h, rows, cols), "PNG"))["sources"][0]["id"]
     seen = []
     files = list(session.export(sid, rows, cols, fmt, progress=lambda d, t: seen.append((d, t))))
     n = rows * cols
     assert len(files) == n and seen[-1] == (n, n)
-    scale = min(rows, cols)
     for i, f in enumerate(files):
         assert f.name == f"포스터 사진_{n}분할_{cols}x{rows}_{i + 1:02d}.{ext}"
         im = Image.open(io.BytesIO(f.data))
         assert im.format == pil
-        assert im.size == (w * scale // cols, h * scale // rows)
+        assert im.size == size
         cx, cy = im.size[0] // 2, im.size[1] * 3 // 4
         assert close(im.convert("RGB").getpixel((cx, cy)), cell_colour(i))
 

@@ -5,6 +5,8 @@ specific, friendly message and a sensible recovery action.
 """
 from __future__ import annotations
 
+import re
+
 # code -> default Korean message (the web UI may override the wording)
 MESSAGES = {
     "UNSUPPORTED": "지원하지 않는 파일 형식이에요.",
@@ -44,3 +46,19 @@ class SplitError(Exception):
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"SplitError({self.code!r}, {self.message!r}, detail={self.detail!r})"
+
+
+# An exhausted heap does not always arrive as MemoryError: MuPDF reports a failed malloc as an
+# ordinary error ("malloc (74996175 bytes) failed"), and a JavaScript allocation that fails inside
+# a callback reaches Python as "RangeError: Array buffer allocation failed".  The second half of
+# the pattern is the one the web worker uses for errors that never pass through Python.
+_MEMORY_TEXT = re.compile(
+    r"\b(?:m|c|re)alloc\b.*\bfailed"
+    r"|out of memory|memory access out of bounds|allocation failed|cannot enlarge memory|MemoryError|RangeError",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def is_out_of_memory(exc: BaseException) -> bool:
+    """True when an error from a library or from JavaScript means that memory ran out."""
+    return isinstance(exc, MemoryError) or bool(_MEMORY_TEXT.search(f"{type(exc).__name__}: {exc}"))

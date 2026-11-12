@@ -7,17 +7,21 @@ const ASSETS_URL = new URL("../assets.json", import.meta.url);
 export const MAX_FILE_BYTES = 300 * 1024 * 1024;
 /** Largest bitmap the browser fallback decoder produces (iOS canvas limit is 16.7 MP). */
 const MAX_CANVAS_PIXELS = 16_000_000;
-/** WebAssembly memory never shrinks: above this the engine is restarted once it is idle. */
-const RECYCLE_HEAP_BYTES = 400 * 1024 * 1024;
-
 const APPLE_TOUCH = typeof navigator !== "undefined" && (/iPad|iPhone|iPod/.test(navigator.userAgent || "")
   || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
-/** Tile size limit for phones with little memory (Chrome reports deviceMemory in GB). */
+/**
+ * WebAssembly memory never shrinks: above this the engine is restarted once it is idle.
+ * iPhone and iPad do not report low memory, they close the page, so they get the tighter limits.
+ */
+const RECYCLE_HEAP_BYTES = (APPLE_TOUCH ? 250 : 400) * 1024 * 1024;
+
+/** Tile size limit for devices with little memory (0 = the engine's own 25 MP). */
 function defaultMaxPixels() {
-  const memory = typeof navigator !== "undefined" ? navigator.deviceMemory : undefined;
+  if (APPLE_TOUCH) return 16_000_000;  // Safari has no deviceMemory to ask
+  const memory = typeof navigator !== "undefined" ? navigator.deviceMemory : undefined;  // GB, Chromium only
   if (typeof memory === "number" && memory <= 2) return 12_500_000;
-  return 0;  // engine default (25 MP)
+  return 0;
 }
 
 function isHeic(head) {
@@ -54,7 +58,8 @@ export class Engine {
     this._opened = [];              // [{ name, blob, password }] for replay after a restart
     this._packages = new Set();     // optional packages downloaded so far
     this._urls = new Map();         // cache key -> { url, width, height }
-    this._generation = 0;
+    this._generation = 0;           // number of the current start(); an older start must not touch anything
+    this._epoch = 0;                // bumped by reset(): answers that belong to an earlier session are dropped
     this._recycle = false;          // restart before the next call (memory hygiene)
   }
 
@@ -80,20 +85,30 @@ export class Engine {
   start() {
     if (this._ready) return this._ready;
     this._set("loading");
-    this._ready = this._boot().then(() => this._replay()).then(
-      () => { this._set("ready"); },
+    // restart() moves on to the next number.  Whatever an abandoned start still does - finish
+    // or fail - must not dispose of the worker that replaced it or change the state.
+    const generation = ++this._generation;
+    const current = () => generation === this._generation;
+    const ready = this._boot(generation).then(() => this._replay(generation)).then(
+      () => {
+        if (!current()) throw new EngineError("CANCELLED");
+        this._set("ready");
+      },
       (error) => {
-        this._ready = null;
-        this._dispose();
-        this._set("failed", error);
+        if (current()) {
+          this._ready = null;
+          this._dispose();
+          this._set("failed", error);
+        }
         throw error;
       },
     );
-    this._ready.catch(() => {});
-    return this._ready;
+    ready.catch(() => {});
+    this._ready = ready;
+    return ready;
   }
 
-  async _boot() {
+  async _boot(generation) {
     if (typeof Worker === "undefined" || typeof WebAssembly !== "object") {
       throw new EngineError("NO_WASM", "이 브라우저에서는 실행할 수 없어요.");
     }
@@ -108,7 +123,7 @@ export class Engine {
     if (this.gate) {
       try { await this.gate(); } catch (error) { /* start anyway */ }
     }
-    const generation = ++this._generation;
+    if (generation !== this._generation) throw new EngineError("CANCELLED");  // replaced while waiting
     let worker;
     try {
       worker = new Worker(WORKER_URL, { type: "module", name: "split-engine" });
@@ -151,13 +166,23 @@ export class Engine {
   }
 
   /** Reopen the files of this session in a fresh engine (same order, so ids stay the same). */
-  async _replay() {
-    for (const item of this._opened) {
+  async _replay(generation) {
+    const list = this._opened;
+    for (const item of list) {
+      if (this._opened !== list) break;  // reset() ran meanwhile: these files are no longer wanted
       try {
         await this._addBlob(item.name, item.blob, item.password, null, true);
       } catch (error) {
         /* only files that opened before are replayed; a failure here leaves that file out */
       }
+      if (generation !== this._generation) throw new EngineError("CANCELLED");
+    }
+    if (this._opened !== list) {
+      // The session was reset while its files were being reopened: drop them from the worker, then
+      // reopen what belongs to the new session, so its ids start at the beginning again.
+      await this._raw("clear");
+      if (generation !== this._generation) throw new EngineError("CANCELLED");
+      await this._replay(generation);
     }
   }
 
@@ -223,9 +248,15 @@ export class Engine {
     if (!packages || !packages.length) return;
     const sizes = (this.assets && this.assets.packages) || {};
     const bytes = packages.reduce((sum, name) => sum + ((sizes[name] && sizes[name].size) || 0), 0);
-    await this._send("ensure", { packages, bytes }, [], {
-      progress: (event) => onProgress && onProgress({ stage: "package", loaded: event.loaded, total: event.total, packages }),
-    });
+    try {
+      await this._send("ensure", { packages, bytes }, [], {
+        progress: (event) => onProgress && onProgress({ stage: "package", loaded: event.loaded, total: event.total, packages }),
+      });
+    } catch (error) {
+      // a download that failed or stalled half-way keeps the worker's package loader busy: next time use a fresh worker
+      if (error instanceof EngineError && error.code === "OFFLINE") this._recycle = true;
+      throw error;
+    }
     const before = this._packages.size;
     for (const name of packages) this._packages.add(name);
     if (this._packages.size !== before && this.state === "ready") this._emit();  // more files to keep for offline use
@@ -246,6 +277,7 @@ export class Engine {
   // ------------------------------------------------------------ files
   /** Forget every opened file (new session). */
   async reset() {
+    this._epoch += 1;
     this._opened = [];
     for (const entry of this._urls.values()) URL.revokeObjectURL(entry.url);
     this._urls.clear();
@@ -284,15 +316,23 @@ export class Engine {
     if (file.size === 0) throw new EngineError("EMPTY_FILE");
     if (file.size > MAX_FILE_BYTES) throw new EngineError("TOO_LARGE");
     await this.start();
+    const epoch = this._epoch;
     let blob = file;
     let result;
     // HEIC: Safari decodes it natively and fast; the engine's own decoder takes many seconds.
     const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
     if (isHeic(head)) {
-      const png = await decodeWithBrowser(file).catch(() => null);
+      // Above the canvas limit the browser hands back a smaller picture.  On a computer the engine's
+      // own decoder (slower, every pixel kept) takes those; on iPhone and iPad memory is the tighter
+      // limit, so the smaller picture is used and the confirm screen says so.
+      const png = await decodeWithBrowser(file, { refuseLarge: !APPLE_TOUCH }).catch(() => null);
       if (png) {
         result = await this._addBlob(name, png, null, onProgress);
         result.converted = true;
+        if (png.reducedFrom) {
+          for (const source of result.sources) source.reduced_from = png.reducedFrom;
+        }
+        if (epoch !== this._epoch) throw new EngineError("CANCELLED");  // the session was reset meanwhile
         this._opened.push({ name, blob: png, password: null });
         return result;
       }
@@ -308,7 +348,11 @@ export class Engine {
       blob = png;
       result = await this._addBlob(name, blob, null, onProgress);
       result.converted = true;
+      if (png.reducedFrom) {  // the browser could only draw it smaller: the confirm screen says so
+        for (const source of result.sources) source.reduced_from = png.reducedFrom;
+      }
     }
+    if (epoch !== this._epoch) throw new EngineError("CANCELLED");  // the session was reset meanwhile
     this._opened.push({ name, blob, password });
     return result;
   }
@@ -316,7 +360,11 @@ export class Engine {
   async _image(method, id, maxPx) {
     const key = `${method}:${id}:${maxPx}`;
     if (this._urls.has(key)) return this._urls.get(key);
+    const epoch = this._epoch;
     const result = await this.call(method, { id, max_px: maxPx });
+    // ids start again at s1 in every session: an answer that was asked for before reset() is a
+    // picture of the previous file and must never be kept under this id
+    if (epoch !== this._epoch) throw new EngineError("CANCELLED");
     const entry = {
       url: URL.createObjectURL(new Blob([result.bytes], { type: result.mime })),
       width: result.width,
@@ -361,7 +409,12 @@ export class Engine {
 // ---------------------------------------------------------------------------
 // Browser fallback decoder
 // ---------------------------------------------------------------------------
-async function decodeWithBrowser(file) {
+/**
+ * Decode a picture the engine cannot read and hand it back as PNG.
+ * refuseLarge: fail instead of shrinking when the picture is above the canvas limit.
+ * A blob that had to be shrunk carries `reducedFrom` = the original { width, height }.
+ */
+async function decodeWithBrowser(file, { refuseLarge = false } = {}) {
   let source = null;
   let width = 0;
   let height = 0;
@@ -402,7 +455,10 @@ async function decodeWithBrowser(file) {
   try {
     if (!width || !height) throw new Error("empty image");
     const pixels = width * height;
+    let reducedFrom = null;
     if (pixels > MAX_CANVAS_PIXELS) {
+      if (refuseLarge) throw new Error("too large for a canvas");
+      reducedFrom = { width, height };
       const shrink = Math.sqrt(MAX_CANVAS_PIXELS / pixels);
       width = Math.max(1, Math.floor(width * shrink));
       height = Math.max(1, Math.floor(height * shrink));
@@ -416,6 +472,7 @@ async function decodeWithBrowser(file) {
     canvas.width = 0;
     canvas.height = 0;
     if (!blob) throw new Error("toBlob failed");
+    if (reducedFrom) blob.reducedFrom = reducedFrom;
     return blob;
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);

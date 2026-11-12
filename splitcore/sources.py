@@ -77,6 +77,16 @@ class Source:
 _EXIF_ORIENTATION = 0x0112
 
 
+def _size_already_turned(probe: Image.Image) -> bool:
+    """True when ``probe.size`` is the stored height x width (TIFF tags 257 and 256), i.e. the
+    reader has applied a quarter-turn orientation to the size by itself."""
+    tags = getattr(probe, "tag_v2", None)
+    try:
+        return probe.size == (int(tags[257]), int(tags[256]))
+    except Exception:  # not a TIFF, or a header without plain sizes
+        return False
+
+
 class RasterSource(Source):
     """A picture stored as encoded bytes (JPEG, PNG, WebP, ...)."""
 
@@ -102,12 +112,16 @@ class RasterSource(Source):
             orientation = probe.getexif().get(_EXIF_ORIENTATION, 1)
         except Exception:
             orientation = 1
-        if orientation in (5, 6, 7, 8):
+        # orientations 5-8 lie on their side: shown upright, width and height change places.
+        # Pillow's TIFF reader reports that turned size itself, so it must not be exchanged again.
+        if orientation in (5, 6, 7, 8) and not _size_already_turned(probe):
             width, height = height, width
         self._size = (int(width), int(height))
         self.format = (probe.format or "").upper()
         self.lossless = self.format not in ("JPEG", "MPO", "WEBP", "JPEG2000")
         self.frames = imaging.frame_count(probe)
+        #: pages the file really has (more than ``frames`` when the list is cut at MAX_FRAMES)
+        self.frames_total = imaging.frame_total(probe)
         probe.close()
 
     @property
@@ -168,4 +182,7 @@ def raster_sources(data: bytes, *, origin: str, label: str | None = None,
             continue
         src.label = f"{index + 1}번째 장"
         sources.append(src)
-    return sources or [first]
+    sources = sources or [first]
+    if first.frames_total > first.frames:
+        sources[0].origin_total = first.frames_total  # read by Session.add_file: the list was cut short
+    return sources

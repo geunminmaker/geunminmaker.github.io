@@ -170,12 +170,17 @@ function paintTopBar() {
   restartButton.hidden = S.screen !== "result";
 }
 
+/** When the action area last got new buttons: taps right after that belong to the previous screen. */
+let dockChangedAt = -1000;  // not right after the page loaded either
+const DOUBLE_TAP_MS = 300;
+
 function setScreen(name, html, { step = 0, dockHTML = "", back = true, focus = true } = {}) {
   if (S.thumbs) {
     S.thumbs.disconnect();
     S.thumbs = null;
   }
   hideToast();  // a toast belongs to the screen it appeared on
+  dockChangedAt = performance.now();
   app.appendChild(dock);  // out of the markup that is about to be replaced
   S.screen = name;
   document.body.dataset.screen = name;
@@ -320,7 +325,16 @@ function dropSession() {
     const inflight = S.inflight;
     // free the pictures in the engine, but only after the load in flight has settled
     // (or has been given up on: the gate must never wait for an engine start that is stuck)
-    afterGate(() => untilStall(inflight).catch(() => {}).then(() => engine.reset()));
+    if (inflight && engine.state === "ready") {
+      // abandoned in the middle of a file (maybe a slow tool download): only a fresh worker stops it,
+      // and the next pick must not wait behind it
+      afterGate(() => {
+        engine.reset().catch(() => {});
+        return untilStall(engine.restart()).catch(() => {});
+      });
+    } else {
+      afterGate(() => untilStall(inflight).catch(() => {}).then(() => engine.reset()));
+    }
   }
 }
 
@@ -509,7 +523,7 @@ async function openFiles(list) {
       const error = normalizeError(raw);
       if (error.code === "CANCELLED") return;
       failures.push({ file, name: file.name, code: error.code, error });
-      if (ENGINE_TROUBLE.has(error.code) || error.code === "OFFLINE" || engine.state === "failed") {
+      if (ENGINE_TROUBLE.has(error.code) || (error.code === "OFFLINE" && engine.state !== "ready") || engine.state === "failed") {
         trouble = error;
         break;
       }
@@ -1004,7 +1018,7 @@ function handOver(intent, { afterBuild }) {
   const plan = delivery(intent);
   if (!plan) return;
   if (intent === "share" && !save.androidShareable(plan.files)) {
-    toast("파일이 커서 공유할 수 없어요. 저장하기를 눌러 주세요", { icon: "alert", long: true, wrap: true });
+    toast("이 파일은 공유할 수 없어요. 저장하기를 눌러 주세요", { icon: "alert", long: true, wrap: true });
     paintResult();
     return;
   }
@@ -1028,15 +1042,20 @@ function deliverNow(intent) {
     const file = plan.files[0];
     save.downloadFile(file);
     if (sheetName() === "deliver") closeSheet("done");
-    flashSaved();
-    toast(`저장했어요 · ${file.name}`);
+    if (S.inApp) {
+      // in-app browsers usually ignore downloads: do not claim what cannot be known
+      toast("저장을 요청했어요. 파일이 안 보이면 Chrome이나 Safari에서 열어 주세요", { icon: "info", long: true, wrap: true });
+    } else {
+      flashSaved();
+      toast(`저장했어요 · ${file.name}`);
+    }
     return;
   }
   const outcome = save.shareFiles(plan.files);  // first thing in the tap: share() spends the tap's activation
   if (sheetName() === "deliver") closeSheet("done");
   outcome.then((result) => {
     if (result === "shared") {
-      toast("공유 창을 열었어요", { icon: "share" });
+      toast("내보냈어요", { icon: "share" });  // share() answers only after the person has finished in the share sheet
     } else if (result === "blocked") {
       // the browser no longer counted the tap: one more tap on a fresh sheet
       if (builtNow() && S.screen === "result") openSheet(deliverSheet({ files: plan.files, mode: plan.mode, intent, again: true }));
@@ -1137,6 +1156,9 @@ function retry() {
     startExport("save");
     return;
   }
+  // A download failed although a newer build is waiting: the file this (older) page asked for may
+  // be gone from the site.  Switching to the new build is the retry that can work.
+  if (S.error && S.error.code === "OFFLINE" && navigator.onLine !== false && platform.applyUpdate()) return;
   const files = S.files.slice();
   if (!files.length) {
     showHome();
@@ -1164,7 +1186,7 @@ function openInstall() {
   } else if (mode === "ios") {
     // Safari 26 moved Share behind "...".  Other iOS browsers do not say which Safari is installed: use the newer wording.
     const modern = !platform.isIOSSafari || platform.safariVersion === 0 || platform.safariVersion >= 26;
-    openSheet(installSheetIOS({ inSafari: platform.isIOSSafari, modern }));
+    openSheet(installSheetIOS({ inSafari: platform.isIOSSafari, modern, ipad: platform.isIPad }));
   }
 }
 
@@ -1270,8 +1292,12 @@ const ACTIONS = {
     }, (raw) => {
       setBusy(element, false);
       const error = normalizeError(raw);
-      if (error.code === "ENGINE_CRASHED" || engine.state === "failed") sourceFailed(error);
-      else if (error.code !== "CANCELLED") toast(exportProblem(error.code, error.message, ""), { icon: "alert", long: true, wrap: true });
+      if (error.code === "ENGINE_CRASHED" || error.code === "NOT_FOUND" || engine.state === "failed") sourceFailed(error);
+      else if (error.code !== "CANCELLED") {
+        const text = error.code === "IMAGE_TOO_SMALL" ? exportProblem(error.code, error.message, "")
+          : "이 모양으로 나눌 준비를 하지 못했어요. 다시 누르거나 다른 모양을 골라 주세요";
+        toast(text, { icon: "alert", long: true, wrap: true });
+      }
     });
   },
   format: (element) => {
@@ -1330,6 +1356,8 @@ const ACTIONS = {
 document.addEventListener("click", (event) => {
   const element = event.target instanceof Element ? event.target.closest("[data-action]") : null;
   if (!element || element.disabled || element.getAttribute("aria-busy") === "true") return;
+  // (detail is 0 for the keyboard and for click() from code: those are never a second tap)
+  if (event.detail > 0 && dock.contains(element) && performance.now() - dockChangedAt < DOUBLE_TAP_MS) return;
   const action = ACTIONS[element.dataset.action];
   if (!action) return;
   action(element, event);
@@ -1396,6 +1424,8 @@ window.addEventListener("drop", (event) => {
   if (takesFiles()) openFiles(event.dataTransfer.files);
 });
 window.addEventListener("paste", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target && target.closest("input, textarea, [contenteditable]")) return;  // typing into a field
   const files = Array.from((event.clipboardData && event.clipboardData.files) || []);
   if (!files.length || !takesFiles()) return;
   event.preventDefault();
@@ -1437,6 +1467,14 @@ function start() {
     onUpdate: () => {
       S.updateReady = true;
       if (S.screen === "home") paintHome();
+    },
+    onTakeover: () => {
+      // Another tab took the update: this page is now old code served by the new worker.
+      if (S.screen === "home") {
+        window.location.reload();
+        return;
+      }
+      S.updateReady = true;  // in the middle of something: offered on the next visit to the home screen
     },
   });
   if (S.inApp && !platform.cameFromHandOff) openInApp();

@@ -339,7 +339,14 @@ def test_docx_export_structure(session, rows, cols, paper):
     assert section.page_height.mm == pytest.approx(page["page_h"], abs=0.1)
     assert len(document.paragraphs) == rows * cols
     xml = zipfile.ZipFile(io.BytesIO(out.data)).read("word/document.xml").decode("utf-8")
-    assert xml.count("<wp:anchor ") == rows * cols
+    # ordinary pictures in the line of text (floating ones blink in some viewers), placed by the margins
+    assert xml.count("<wp:inline ") == rows * cols and "<wp:anchor" not in xml
+    assert len(document.inline_shapes) == rows * cols
+    assert section.left_margin.mm == pytest.approx(page["x"], abs=0.1)
+    assert section.top_margin.mm == pytest.approx(page["y"], abs=0.1)
+    text_w = section.page_width.mm - section.left_margin.mm - section.right_margin.mm
+    text_h = section.page_height.mm - section.top_margin.mm - section.bottom_margin.mm
+    assert text_w >= page["w"] - 0.01 and text_h >= page["h"] - 0.01  # nothing has to be scaled or pushed on
     assert xml.count("<w:pageBreakBefore/>") == rows * cols - 1
     import re
     extents = set(re.findall(r'<wp:extent cx="(\d+)" cy="(\d+)"/>', xml))

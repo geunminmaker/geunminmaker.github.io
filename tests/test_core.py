@@ -64,7 +64,10 @@ def test_square_grids_keep_the_original_size():
     # 2 rows x 3 columns: enlarged twice -> touches the original height, narrower than the width
     assert output_size(Layout(2, 3), 3000, 2000) == (2000, 2000)
     assert output_size(Layout(3, 2), 2000, 3000) == (2000, 2000)
-    assert output_size(Layout(1, 2), 4000, 3000) == (2000, 3000)
+    # two portrait halves of a landscape picture grow into the original size turned by 90 degrees
+    assert output_size(Layout(1, 2), 4000, 3000) == (2667, 4000)
+    # a strip across the whole picture cannot grow in either position
+    assert output_size(Layout(2, 1), 4000, 3000) == (4000, 1500)
 
 
 def test_tile_boxes_cover_everything_without_gaps():
@@ -235,6 +238,14 @@ def test_page_spec_original_and_a4():
     assert round(spec.page_w) == 297 and round(spec.page_h) == 198
     assert round(spec.w) == round(spec.h) == 198 and round(spec.y) == 0 and spec.x > 40
 
+    # two portrait halves of a landscape picture: the same sheet, turned by 90 degrees
+    spec = page_spec(make_plan(4000, 3000, 1, 2), "original")
+    assert (round(spec.page_w), round(spec.page_h)) == (210, 280)
+    assert (round(spec.w), round(spec.h), round(spec.y)) == (187, 280, 0)
+    # a strip across the picture fits the sheet as it lies
+    spec = page_spec(make_plan(4000, 3000, 2, 1), "original")
+    assert (round(spec.page_w), round(spec.page_h), round(spec.w), round(spec.h)) == (280, 210, 280, 105)
+
     a4 = page_spec(make_plan(4000, 3000, 3, 3), "a4")
     assert (a4.page_w, a4.page_h) == (297.0, 210.0) and a4.margin == 5.0
     assert a4.w <= 287.001 and a4.h <= 200.001
@@ -242,6 +253,8 @@ def test_page_spec_original_and_a4():
 
     pdf_like = page_spec(make_plan(2480, 3508, 2, 2), "original", physical_mm=(210.0, 297.0))
     assert (pdf_like.page_w, pdf_like.page_h) == (210.0, 297.0)
+    pdf_halves = page_spec(make_plan(2480, 3508, 2, 1), "original", physical_mm=(210.0, 297.0))
+    assert (pdf_halves.page_w, pdf_halves.page_h) == (297.0, 210.0)  # A4 portrait cut in two: A4 landscape pages
     with pytest.raises(SplitError):
         page_spec(plan, "b5")
 

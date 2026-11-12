@@ -55,7 +55,13 @@ export function androidShareable(files) {
 
 /** The same question before anything is built: only the format and the number of files are known. */
 export function androidShareLikely(format, fileCount) {
-  return hasShare() && ANDROID_SHARE_TYPES.test("x." + format) && fileCount <= ANDROID_SHARE_MAX_FILES;
+  if (!hasShare() || !ANDROID_SHARE_TYPES.test("x." + format) || fileCount > ANDROID_SHARE_MAX_FILES) return false;
+  // some browsers have share() but cannot share files at all (Firefox for Android)
+  try {
+    return canShare([new File([""], "x.pdf", { type: "application/pdf" })]);
+  } catch (error) {
+    return false;
+  }
 }
 
 /** Does this delivery need the ZIP (so it has to be built before the tap that delivers)? */

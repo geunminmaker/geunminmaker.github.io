@@ -12,11 +12,22 @@ import io
 from PIL import Image
 
 from .. import imaging
-from ..errors import SplitError
+from ..errors import SplitError, is_out_of_memory
 from ..sources import RasterSource, Source
 
 #: formats worth a second try
 FALLBACK_KINDS = ("tiff", "jp2")
+
+#: TIFF Orientation tag -> what turns the stored pixels upright (the same table as EXIF)
+_UPRIGHT = {
+    2: Image.Transpose.FLIP_LEFT_RIGHT,
+    3: Image.Transpose.ROTATE_180,
+    4: Image.Transpose.FLIP_TOP_BOTTOM,
+    5: Image.Transpose.TRANSPOSE,
+    6: Image.Transpose.ROTATE_270,
+    7: Image.Transpose.TRANSVERSE,
+    8: Image.Transpose.ROTATE_90,
+}
 
 
 def _to_image(pix, pymupdf) -> Image.Image:
@@ -44,31 +55,42 @@ def load_with_mupdf(data: bytes, origin: str) -> list[Source]:
     kind = imaging.sniff_image(data)
     try:
         if kind == "tiff":
-            # native pixel size of every frame comes from the TIFF header (Pillow can read headers)
-            sizes = []
+            # The stored pixel size (tags 256 / 257) and the Orientation tag (274) of every frame
+            # come from the TIFF header, which Pillow can read even when it cannot decode the pixels.
+            # Its own ``size`` is not used: for orientations 5-8 that one is already turned.
+            frames = []
             try:
                 probe = Image.open(io.BytesIO(data))
                 for index in range(min(int(getattr(probe, "n_frames", 1)), imaging.MAX_FRAMES)):
                     probe.seek(index)
-                    sizes.append(probe.size)
+                    tags = probe.tag_v2
+                    frames.append((int(tags[256]), int(tags[257]), int(tags.get(274) or 1)))
             except Exception:
-                sizes = []
+                frames = []
             document = pymupdf.open(stream=data, filetype="tiff")
             try:
                 sources: list[Source] = []
-                count = min(document.page_count, imaging.MAX_FRAMES)
+                total = document.page_count
+                count = min(total, imaging.MAX_FRAMES)
                 for index in range(count):
                     page = document[index]
                     rect = page.rect
-                    width, height = sizes[index] if index < len(sizes) else (round(rect.width), round(rect.height))
+                    width, height, orientation = (frames[index] if index < len(frames)
+                                                  else (round(rect.width), round(rect.height), 1))
                     if width * height > imaging.MAX_SOURCE_PIXELS:
                         raise SplitError("IMAGE_TOO_LARGE", detail=f"{width}x{height}")
+                    # MuPDF draws the pixels as they are stored and ignores the Orientation tag:
+                    # render at the stored size, then turn the picture the way every viewer shows it
                     matrix = pymupdf.Matrix(width / rect.width, height / rect.height)
-                    pix = page.get_pixmap(matrix=matrix, alpha=False)
+                    image = _to_image(page.get_pixmap(matrix=matrix, alpha=False), pymupdf)
+                    if orientation in _UPRIGHT:
+                        image = image.transpose(_UPRIGHT[orientation])
                     label = origin if count == 1 else f"{index + 1}번째 장"
-                    sources.append(_as_source(_to_image(pix, pymupdf), label, origin))
+                    sources.append(_as_source(image, label, origin))
                 if not sources:
                     raise SplitError("CORRUPT", detail="tiff: no frames")
+                if total > count:
+                    sources[0].origin_total = total  # read by Session.add_file: the list was cut short
                 return sources
             finally:
                 document.close()
@@ -81,4 +103,6 @@ def load_with_mupdf(data: bytes, origin: str) -> list[Source]:
     except MemoryError:
         raise SplitError("OUT_OF_MEMORY") from None
     except Exception as exc:
+        if is_out_of_memory(exc):  # MuPDF reports a failed malloc as an ordinary error
+            raise SplitError("OUT_OF_MEMORY", detail=f"mupdf: {exc}") from None
         raise SplitError("CORRUPT", detail=f"mupdf: {type(exc).__name__}: {exc}") from None

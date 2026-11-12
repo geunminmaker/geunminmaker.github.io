@@ -80,11 +80,13 @@ def serve_in_thread(directory: str | None = None, port: int = 0, counter=None, c
 
 
 def main() -> None:
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    port = int(args[0]) if args else 8765
+    rest = sys.argv[1:]
     directory = os.path.join(ROOT, "web")
-    if "--dir" in sys.argv:
-        directory = os.path.abspath(sys.argv[sys.argv.index("--dir") + 1])
+    if "--dir" in rest:
+        at = rest.index("--dir")
+        directory = os.path.abspath(rest[at + 1])
+        del rest[at:at + 2]
+    port = int(rest[0]) if rest else 8765
     server = make_server(directory, port)
     print(f"http://localhost:{port}/  ->  {directory}")
     try:

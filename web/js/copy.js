@@ -120,11 +120,16 @@ const RETRY = { label: "다시 시도", action: "retry" };
 
 const file = (name) => (name ? `<b>${esc(name)}</b> 파일` : "이 파일");
 
+/** Extensions the app reads: a file with one of these that still cannot be read has other content than its name says. */
+const KNOWN_EXT = /\.(jpe?g|png|gif|bmp|webp|tiff?|heic|heif|avif|pdf|docx?|pptx?|xlsx?|hwpx?|odt|odp|epub|zip)$/i;
+
 const ERRORS = {
   UNSUPPORTED: {
     icon: "file-x",
     title: "이 파일은\n열 수 없어요",
-    body: (name) => `${file(name)}은 지원하지 않는 형식이에요. 사진(JPG, PNG)이나 PDF, 한글, Word, PowerPoint 파일을 골라 주세요.`,
+    body: (name) => (KNOWN_EXT.test(name)
+      ? `${file(name)}은 이름과 달리 내용을 읽을 수 없어요. 파일이 제대로 받아졌는지 확인하거나 원본 파일을 다시 골라 주세요.`
+      : `${file(name)}은 지원하지 않는 형식이에요. 사진(JPG, PNG)이나 PDF, 한글, Word, PowerPoint 파일을 골라 주세요.`),
     primary: PICK,
   },
   CORRUPT: {
@@ -223,7 +228,7 @@ ERRORS.NOT_FOUND = ERRORS.INTERNAL;
  */
 export function errorView(code, { name = "", message = "" } = {}) {
   const spec = ERRORS[code] || ERRORS.INTERNAL;
-  const specific = spec.field ? "" : specificMessage(code, message);
+  const specific = spec.field || code === "NO_WASM" ? "" : specificMessage(code, message);
   return {
     icon: spec.icon,
     danger: Boolean(spec.danger),
@@ -250,6 +255,7 @@ const REASONS = {
   IMAGE_TOO_LARGE: "해상도가 너무 높은 이미지",
   OUT_OF_MEMORY: "메모리 부족",
   UNREADABLE: "읽을 수 없는 파일",
+  OFFLINE: "인터넷 연결이 필요한 파일",
 };
 export const failureReason = (code) => REASONS[code] || "열 수 없는 파일";
 

@@ -12,7 +12,7 @@ import pymupdf
 from PIL import Image
 
 from .. import __version__, imaging
-from ..errors import SplitError
+from ..errors import SplitError, is_out_of_memory
 from ..sources import Source
 from ..splitter import MM_PER_INCH
 
@@ -113,6 +113,8 @@ class PdfPageSource(Source):
         except SplitError:
             raise
         except Exception as exc:
+            if is_out_of_memory(exc):  # MuPDF reports a failed malloc as an ordinary error
+                raise SplitError("OUT_OF_MEMORY", detail=f"pdf render: {exc}") from None
             raise SplitError("CORRUPT", detail=f"pdf render: {type(exc).__name__}: {exc}") from None
         return image
 
@@ -192,6 +194,8 @@ class PdfPageSource(Source):
         except MemoryError:
             raise SplitError("OUT_OF_MEMORY") from None
         except Exception as exc:
+            if is_out_of_memory(exc):  # not INTERNAL: the raster writer must not be tried in a full heap
+                raise SplitError("OUT_OF_MEMORY", detail=f"pdf export: {exc}") from None
             raise SplitError("INTERNAL", detail=f"pdf export: {type(exc).__name__}: {exc}") from None
         finally:
             if rotation:

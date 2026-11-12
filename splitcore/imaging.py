@@ -154,13 +154,15 @@ def _valid_dpi(dpi) -> bool:
         return False
 
 
-_heif_state = {"tried": False, "ok": False}
+#: Only a successful registration is remembered.  A failed attempt is not: in the browser
+#: pillow-heif is downloaded on demand, so the import that fails for a HEIC inside a ZIP must
+#: be tried again once the page has loaded the package.
+_heif_state = {"ok": False}
 
 
 def enable_heif() -> bool:
     """Register the optional HEIC decoder (pillow-heif) when it is installed."""
-    if not _heif_state["tried"]:
-        _heif_state["tried"] = True
+    if not _heif_state["ok"]:
         try:
             import pillow_heif  # type: ignore
 
@@ -170,8 +172,19 @@ def enable_heif() -> bool:
             pillow_heif.register_heif_opener()
             _heif_state["ok"] = True
         except Exception:
-            _heif_state["ok"] = False
+            pass  # not there (yet), or unusable: asked again for the next HEIC
     return _heif_state["ok"]
+
+
+def heif_missing() -> bool:
+    """True when pillow-heif is not installed (in the browser: not downloaded yet)."""
+    try:
+        import pillow_heif  # type: ignore  # noqa: F401
+    except ImportError:
+        return True
+    except Exception:  # there, but broken: asking for the package again would not help
+        return False
+    return False
 
 
 def open_image(data: bytes) -> Image.Image:
@@ -206,14 +219,19 @@ def open_image(data: bytes) -> Image.Image:
     return im
 
 
-def frame_count(im: Image.Image) -> int:
-    """Pages of a multi-page TIFF; animations (GIF/WebP/APNG) count as one picture."""
+def frame_total(im: Image.Image) -> int:
+    """All pages of a multi-page TIFF; animations (GIF/WebP/APNG) count as one picture."""
     if (im.format or "").upper() == "TIFF":
         try:
-            return max(1, min(int(getattr(im, "n_frames", 1)), MAX_FRAMES))
+            return max(1, int(getattr(im, "n_frames", 1)))
         except Exception:
             return 1
     return 1
+
+
+def frame_count(im: Image.Image) -> int:
+    """Pages that are offered from a multi-page TIFF (at most MAX_FRAMES)."""
+    return min(frame_total(im), MAX_FRAMES)
 
 
 def decode(data: bytes, frame: int = 0) -> Image.Image:

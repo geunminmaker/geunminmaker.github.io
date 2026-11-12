@@ -192,6 +192,34 @@ def test_update_replaces_only_what_changed(site, phone):
     assert driver.console_problems() == []
 
 
+def test_update_is_complete_before_it_takes_over(site, phone):
+    """A new build fetches its changed engine files while it installs: updating offline still works."""
+    driver, context = phone
+    driver.open("")
+    wait_engine(driver)
+    wait_keys(driver, BOOT_NAMES)
+    old = site.engine_hashes()
+    with zipfile.ZipFile(site.path("py/splitcore.zip"), "a") as archive:
+        archive.writestr("splitcore/_marker.py", "MARKER = 3" + chr(10))
+    with open(site.path("py/splitcore.zip"), "rb") as handle:
+        new_hash = hashlib.sha256(handle.read()).hexdigest()
+    site.restamp(build="next-build-0002", engine=dict(old, **{"py/splitcore.zip": new_hash}))
+
+    driver.page.reload()
+    driver.wait_screen("home")
+    driver.page.wait_for_selector('[data-action="update"]', timeout=60_000)   # installed = everything is there
+    keys = driver.page.evaluate(KEYS)
+    assert any(key.endswith("splitcore.zip?h=" + new_hash[:16]) for key in keys), keys
+
+    context.set_offline(True)                             # the user goes offline, then takes the update
+    with driver.page.expect_navigation(timeout=60_000):
+        driver.click('[data-action="update"]')
+    driver.wait_screen("home")
+    wait_engine(driver)
+    assert "shell-next-build-0002" in driver.page.evaluate("() => caches.keys()")
+    assert split_and_save(driver, PHOTO, 4, "2x2", "pdf") == []
+
+
 def test_a_file_of_another_build_is_never_stored(site, phone):
     driver, context = phone
     hashes = site.engine_hashes()

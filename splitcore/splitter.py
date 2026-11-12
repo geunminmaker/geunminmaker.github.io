@@ -11,12 +11,14 @@ from PIL import Image
 
 from . import imaging
 from .errors import SplitError
-from .grids import Layout, is_usable, output_size, scale_factor, tile_boxes
+from .grids import Layout, is_original_size, is_usable, output_size, scale_factor, tile_boxes
 
 A4_MM = (210.0, 297.0)
 #: default margin when a tile is placed on an A4 sheet (inside what printers can reach)
 A4_MARGIN_MM = 5.0
 MM_PER_INCH = 25.4
+#: longest page made up for a very long strip (Word's 22 inches: every output format takes it)
+STRIP_MAX_MM = 550.0
 
 
 @dataclass
@@ -28,7 +30,7 @@ class SplitPlan:
     src_h: int
     out_w: int
     out_h: int
-    #: True when the tile had to be made smaller than "original size" to stay within limits
+    #: True when the tile had to be made smaller than the enlargement rule gives, to stay within limits
     capped: bool
     boxes: list = field(default_factory=list)
 
@@ -38,7 +40,8 @@ class SplitPlan:
 
     @property
     def fills_original(self) -> bool:
-        return (self.out_w, self.out_h) == (self.src_w, self.src_h)
+        """The tile is as large as the original picture, upright or turned by 90 degrees."""
+        return is_original_size(self.out_w, self.out_h, self.src_w, self.src_h)
 
     def to_dict(self) -> dict:
         return {
@@ -52,13 +55,18 @@ class SplitPlan:
             "out_h": self.out_h,
             "capped": self.capped,
             "fills_original": self.fills_original,
-            "scale": scale_factor(self.layout),
+            # what the enlargement rule gives for this grid (the pixel limit is not counted in)
+            "scale": round(scale_factor(self.layout, self.src_w, self.src_h), 4),
         }
 
 
 def make_plan(src_w: int, src_h: int, rows: int, cols: int,
               max_tile_pixels: int = imaging.MAX_TILE_PIXELS) -> SplitPlan:
-    """Validate the grid for this picture and work out the enlarged tile size."""
+    """Validate the grid for this picture and work out the enlarged tile size.
+
+    The size follows :func:`grids.scale_factor`; a tile that would exceed
+    ``max_tile_pixels`` is shrunk in proportion and the plan is marked ``capped``.
+    """
     try:
         layout = Layout(int(rows), int(cols))
     except (TypeError, ValueError):
@@ -110,6 +118,13 @@ def _fit(inner_w: float, inner_h: float, box_w: float, box_h: float) -> tuple[fl
     return inner_w * scale, inner_h * scale
 
 
+def _tile_on(plan: SplitPlan, page_w: float, page_h: float, margin: float) -> tuple[float, float, float]:
+    """The margin really used and the size of the tile on a page of this size."""
+    margin = min(margin, min(page_w, page_h) / 4.0)
+    w, h = _fit(plan.out_w, plan.out_h, page_w - 2 * margin, page_h - 2 * margin)
+    return margin, w, h
+
+
 def page_spec(plan: SplitPlan, paper: str = "original", margin_mm: float | None = None,
               physical_mm: tuple[float, float] | None = None,
               min_side_mm: float = 30.0, max_side_mm: float = 550.0) -> PageSpec:
@@ -118,9 +133,13 @@ def page_spec(plan: SplitPlan, paper: str = "original", margin_mm: float | None 
     ``paper="original"``
         The page has the proportions of the original picture, so a tile from a
         square grid (3x3, 4x4 ...) covers the page completely and a tile from
-        any other grid is centred on it, as large as possible.  The page uses
-        the source's real size when it has one (PDF pages); otherwise the
-        proportions are fitted into an A4 sheet, so printing at 100 % works.
+        any other grid is centred on it, as large as possible.  The page is
+        turned by 90 degrees when the enlarged tile fits it better that way
+        (the two portrait halves of a landscape picture go on portrait pages).
+        The page uses the source's real size when it has one (PDF pages) and
+        the output format can hold it (``max_side_mm``, see ``export.MAX_PAGE_MM``);
+        otherwise the proportions are fitted into an A4 sheet, so printing at
+        100 % works.
 
     ``paper="a4"``
         A real A4 sheet, turned to match the tile, with a small printer-safe
@@ -141,18 +160,24 @@ def page_spec(plan: SplitPlan, paper: str = "original", margin_mm: float | None 
             short, long_ = A4_MM
             box = (long_, short) if plan.src_w > plan.src_h else (short, long_)
             page_w, page_h = _fit(plan.src_w, plan.src_h, *box)
-            # extremely long strips: keep the short side printable
+            # extremely long strips: keep the short side printable ...
             if min(page_w, page_h) < min_side_mm:
                 grow = min_side_mm / min(page_w, page_h)
                 page_w, page_h = page_w * grow, page_h * grow
-                if max(page_w, page_h) > max_side_mm:
-                    shrink = max_side_mm / max(page_w, page_h)
-                    page_w, page_h = page_w * shrink, page_h * shrink
+                # ... and cut only the long side back to what every format takes.  Shrinking both
+                # sides again would leave a page a few millimetres wide, which Hangul and
+                # PowerPoint cannot hold; the tile is centred on the page anyway.
+                longest = min(max_side_mm, STRIP_MAX_MM)
+                page_w, page_h = min(page_w, longest), min(page_h, longest)
+        # The enlarged tile may sit larger on the same sheet turned by 90 degrees (the halves of
+        # a landscape picture are portrait).  A tie keeps the orientation of the picture.
+        _m, upright_w, upright_h = _tile_on(plan, page_w, page_h, margin)
+        _m, turned_w, turned_h = _tile_on(plan, page_h, page_w, margin)
+        if turned_w * turned_h > upright_w * upright_h * (1.0 + 1e-6):
+            page_w, page_h = page_h, page_w
     else:
         raise SplitError("BAD_FORMAT", detail=f"paper={paper!r}")
-    margin = min(margin, min(page_w, page_h) / 4.0)
-    area_w, area_h = page_w - 2 * margin, page_h - 2 * margin
-    w, h = _fit(plan.out_w, plan.out_h, area_w, area_h)
+    margin, w, h = _tile_on(plan, page_w, page_h, margin)
     return PageSpec(page_w, page_h, (page_w - w) / 2.0, (page_h - h) / 2.0, w, h, paper, margin)
 
 

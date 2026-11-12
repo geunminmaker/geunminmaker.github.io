@@ -98,8 +98,11 @@ def _part_pictures(z: _Zip, part: str) -> list[str]:
 
 
 def _add_media(z: _Zip, collector: PictureCollector, names, label_of) -> None:
-    for name in names:
+    names = list(names)
+    for index, name in enumerate(names):
         if collector.full:
+            # the rest is not read, only counted: the list is reported as cut short
+            collector.turned_away += sum(1 for n in names[index:] if _ext(n) not in VECTOR_EXTENSIONS)
             break
         if _ext(name) in VECTOR_EXTENSIONS:
             collector.skipped_vector += 1
@@ -182,17 +185,23 @@ def load_zip(data: bytes, origin: str, password: str | None = None) -> list[Sour
     z = _Zip(data, password)
     lower = set(z.lower)
     mimetype = (z.text("mimetype") if "mimetype" in lower else b"").strip()
+    packaged = "[content_types].xml" in lower  # every Office (OOXML) file has this part
+
+    def office(folder: str, main: str) -> bool:
+        """An Office file - not an ordinary archive with a folder that happens to be called
+        ppt, word or xl: it has the main part, or at least the package's list of contents."""
+        return main in lower or (packaged and any(n.startswith(folder) for n in lower))
 
     try:
-        if any(n.startswith("word/") for n in lower):
+        if office("word/", "word/document.xml"):
             sources = _load_docx(z, origin)
-        elif any(n.startswith("ppt/") for n in lower):
+        elif office("ppt/", "ppt/presentation.xml"):
             sources = _load_pptx(z, origin)
         elif mimetype.startswith(b"application/hwp+zip") or "contents/content.hpf" in lower \
                 or any(n.startswith("contents/section") for n in lower):
             from .hangul import load_hangul
             sources = load_hangul(data, origin)
-        elif any(n.startswith("xl/") for n in lower):
+        elif office("xl/", "xl/workbook.xml"):
             sources = _load_generic(z, origin, ("xl/media/",), "문서 속 이미지", use_names=False)
         elif mimetype.startswith(b"application/vnd.oasis.opendocument"):
             sources = _load_generic(z, origin, ("pictures/", "media/"), "문서 속 이미지", use_names=False)
@@ -202,7 +211,7 @@ def load_zip(data: bytes, origin: str, password: str | None = None) -> list[Sour
             sources = _load_generic(z, origin, (), "압축 파일 속 이미지", use_names=True)
     except SplitError as exc:
         if exc.code == "NO_IMAGE" and z.encrypted_hit:
-            raise SplitError("PROTECTED", "암호가 걸린 압축 파일은 열 수 없어요. 압축을 풀어서 이미지를 직접 올려 주세요.",
+            raise SplitError("PROTECTED", "암호가 걸린 압축 파일은 열 수 없어요. 압축을 풀어서 이미지를 직접 골라 주세요.",
                              detail="zip-encrypted") from None
         raise
     return sources

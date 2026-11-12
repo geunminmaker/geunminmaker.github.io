@@ -19,7 +19,7 @@ def load_hangul(data: bytes, origin: str) -> list[Source]:
     except hwp_reader.HwpDistributionError:
         raise SplitError(
             "PROTECTED",
-            "배포용 문서는 내용을 꺼낼 수 없어요. 원본 문서나 이미지 파일을 올려 주세요.",
+            "배포용 문서는 내용을 꺼낼 수 없어요. 원본 문서나 이미지 파일을 골라 주세요.",
             detail="hwp-distribution",
         ) from None
     except hwp_reader.HwpDrmError:
@@ -37,7 +37,7 @@ def load_hangul(data: bytes, origin: str) -> list[Source]:
         if exc.skipped:
             raise SplitError(
                 "NO_IMAGE",
-                "문서 속 그림이 벡터(WMF/EMF)나 OLE 개체라서 꺼낼 수 없어요. PDF로 저장한 뒤 그 PDF를 올려 주세요.",
+                "문서 속 그림이 벡터(WMF/EMF)나 OLE 개체라서 꺼낼 수 없어요. PDF로 저장한 뒤 그 PDF를 골라 주세요.",
                 detail=f"hwp-skipped={len(exc.skipped)}",
             ) from None
         raise SplitError("NO_IMAGE", HINT_NO_PICTURE, detail="hwp-no-images") from None
