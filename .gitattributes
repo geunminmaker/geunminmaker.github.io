@@ -1,0 +1,2 @@
+# Files are committed exactly as they are on disk: the service worker checks engine files by hash.
+* -text

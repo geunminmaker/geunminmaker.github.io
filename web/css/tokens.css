@@ -1,0 +1,54 @@
+/* ---------------------------------------------------------------
+   Design tokens  (조각조각 · both colour schemes)
+   --------------------------------------------------------------- */
+:root{
+  color-scheme: light dark;
+  --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif;
+
+  /* colour · light */
+  --bg:#FFFFFF;            --bg-0:rgba(255,255,255,0);   --bg-elev:#FFFFFF;
+  --surface:#F3F5F7;       --surface-2:#E8EBEF;          --surface-elev:#F3F5F7;   --surface-elev-2:#E8EBEF;
+  --line:#E5E8EB;          --line-strong:#CDD3DA;
+  --text:#191F28;          --text-2:#4E5968;   --text-3:#65707D;   --text-off:#B0B8C1;
+  --brand:#1F6BF0;         --brand-hover:#1B60DB;        --brand-press:#1754C4;
+  --brand-tint:#EDF3FE;    --brand-tint-2:#D5E3FC;       --brand-text:#1A5FDB;   --on-brand:#FFFFFF;
+  --danger:#D93A3A;        --danger-tint:#FDEEEE;
+  --scrim:rgba(12,16,22,.5);
+  --toast-bg:#222830;      --toast-text:#FFFFFF;
+  --img-edge:rgba(0,0,0,.08);       --seg-on:#FFFFFF;
+  --sheen:rgba(255,255,255,.5);
+  --shadow-sheet:0 -8px 32px rgba(15,23,35,.12);
+  --shadow-pop:0 8px 28px rgba(15,23,35,.16);
+
+  /* spacing · 4/8 */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px; --s12:48px;
+  --gutter:20px;
+  --col:560px;
+
+  /* radii */
+  --r-xs:6px; --r-sm:8px; --r-md:12px; --r-btn:14px; --r-lg:16px; --r-xl:20px;
+
+  /* motion */
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --t-press:180ms; --t:200ms; --t-sheet:240ms;
+
+  /* control sizes */
+  --h-btn:56px; --h-touch:44px; --h-bar:56px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#101214;          --bg-0:rgba(16,18,20,0);      --bg-elev:#1A1D21;
+    --surface:#1C1F24;     --surface-2:#282C33;          --surface-elev:#272B32;   --surface-elev-2:#343A43;
+    --line:#2A2E35;        --line-strong:#3F454E;
+    --text:#F1F3F5;        --text-2:#B4BBC4;   --text-3:#8A93A0;   --text-off:#525A65;
+    --brand:#2A6FEB;       --brand-hover:#3A7BF0;        --brand-press:#2260D2;
+    --brand-tint:#162339;  --brand-tint-2:#213861;       --brand-text:#78A9FA;   --on-brand:#FFFFFF;
+    --danger:#F26D6D;      --danger-tint:#331A1B;
+    --scrim:rgba(0,0,0,.62);
+    --toast-bg:#EEF0F3;    --toast-text:#191F28;
+    --img-edge:rgba(255,255,255,.1);  --seg-on:#3A4049;
+    --sheen:rgba(255,255,255,.22);
+    --shadow-sheet:0 -8px 32px rgba(0,0,0,.5);
+    --shadow-pop:0 8px 28px rgba(0,0,0,.5);
+  }
+}

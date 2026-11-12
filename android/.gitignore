@@ -1,0 +1,21 @@
+# Signing material - NEVER commit. Losing or leaking the keystore has real consequences (see README.md).
+signing/
+keystore.properties
+*.jks
+*.keystore
+
+# Machine-specific SDK location
+local.properties
+
+# Build outputs
+.gradle/
+build/
+app/build/
+dist/
+
+# Android Studio / tooling leftovers
+.idea/
+*.iml
+.kotlin/
+captures/
+__pycache__/

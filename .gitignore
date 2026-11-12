@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# generated test data and results
+tests/corpus/
+tests/e2e/out/
+
+# Android build output and signing material (never commit the keystore)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore.properties
+android/*.jks
+android/*.keystore
+*.jks
+*.keystore
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,154 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ---------------------------------------------------------------------------
+// Trusted Web Activity settings - the only block that normally needs editing.
+// ---------------------------------------------------------------------------
+def twa = [
+    applicationId   : 'io.github.geunminmaker.splitimage',
+    hostName        : 'geunminmaker.github.io',   // origin that must serve /.well-known/assetlinks.json
+    scopePath       : '/split-image/',            // where the PWA lives (also the App Links pathPrefix)
+    startQuery      : '?source=twa',              // appended to the start URL so the site can tell APK launches apart
+    // Overridable from the command line / CI: -PtwaVersionCode=3 -PtwaVersionName=1.0.2
+    // versionCode must increase with every APK you hand out, or Android refuses the update.
+    versionCode     : (project.findProperty('twaVersionCode') ?: '1').toString().toInteger(),
+    versionName     : (project.findProperty('twaVersionName') ?: '1.0.0').toString(),
+    // 'customtabs' (default) or 'webview'. Keep 'customtabs': the library WebView fallback has no
+    // <input type=file> chooser and no blob: download support, both of which the PWA needs.
+    fallbackStrategy: 'customtabs',
+]
+
+// ---------------------------------------------------------------------------
+// Release signing: environment variables win (CI), keystore.properties is the local fallback.
+//   TWA_KEYSTORE_FILE / TWA_KEYSTORE_PASSWORD / TWA_KEY_ALIAS / TWA_KEY_PASSWORD
+//   keystore.properties: storeFile= storePassword= keyAlias= keyPassword=
+// ---------------------------------------------------------------------------
+def ksProps = new Properties()
+def ksPropsFile = rootProject.file('keystore.properties')
+if (ksPropsFile.exists()) {
+    ksPropsFile.withInputStream { ksProps.load(it) }
+}
+def signingValue = { String envName, String propName ->
+    System.getenv(envName) ?: ksProps.getProperty(propName)
+}
+def releaseStoreFile = signingValue('TWA_KEYSTORE_FILE', 'storeFile')
+
+// "dev" build type only: URL of a local dev server reached through `adb reverse` (override: -PtwaDevUrl=...).
+def devLaunchUrl = (project.findProperty('twaDevUrl') ?: 'http://localhost:8765/').toString()
+def devOrigin = devLaunchUrl.replaceFirst('^(https?://[^/]+).*$', '$1')
+def assetStatementsFor = { String site ->
+    '[{ \\"relation\\": [\\"delegate_permission/common.handle_all_urls\\"], ' +
+    '\\"target\\": { \\"namespace\\": \\"web\\", \\"site\\": \\"' + site + '\\" } }]'
+}
+
+base {
+    // Gradle output names: jogakjogak-<version>-release.apk / -dev.apk (tools/build_apk.sh copies them to dist/).
+    archivesName = "jogakjogak-${twa.versionName}"
+}
+
+android {
+    namespace twa.applicationId
+    compileSdk 36            // required by androidx.browser 1.10.0 / androidx.core 1.17.0 (minCompileSdk=36)
+
+    defaultConfig {
+        applicationId twa.applicationId
+        minSdk 24            // androidbrowserhelper 2.7.4 itself declares minSdk 24
+        targetSdk 35
+        versionCode twa.versionCode
+        versionName twa.versionName
+
+        manifestPlaceholders = [
+            hostName         : twa.hostName,
+            scopePath        : twa.scopePath,
+            scopeUrl         : "https://${twa.hostName}${twa.scopePath}",
+            launchUrl        : "https://${twa.hostName}${twa.scopePath}${twa.startQuery}",
+            providerAuthority: "${twa.applicationId}.fileprovider",
+            fallbackStrategy : twa.fallbackStrategy,
+        ]
+
+        // App -> web half of Digital Asset Links (read by the browser from the installed APK).
+        resValue 'string', 'assetStatements', assetStatementsFor("https://${twa.hostName}")
+    }
+
+    signingConfigs {
+        release {
+            if (releaseStoreFile) {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword signingValue('TWA_KEYSTORE_PASSWORD', 'storePassword')
+                keyAlias signingValue('TWA_KEY_ALIAS', 'keyAlias')
+                keyPassword signingValue('TWA_KEY_PASSWORD', 'keyPassword')
+                // minSdk 24 would let AGP drop the v1 (JAR) signature; keep all three explicitly.
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            // Do not embed the git commit in the APK: the same sources then always give the same bytes.
+            vcsInfo {
+                include false
+            }
+            if (releaseStoreFile) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn('WARNING: no release keystore configured - the release APK will be UNSIGNED.')
+            }
+        }
+
+        // Test-only twin of the release build that wraps a local dev server instead of the deployed
+        // site, installable next to the real app (package suffix ".dev"). It only goes full screen
+        // when Chrome runs with --disable-digital-asset-link-verification-for-url=<dev origin>.
+        dev {
+            initWith release
+            matchingFallbacks = ['release']
+            applicationIdSuffix '.dev'
+            versionNameSuffix '-dev'
+            manifestPlaceholders = [
+                launchUrl        : devLaunchUrl,
+                scopeUrl         : devLaunchUrl,
+                providerAuthority: "${twa.applicationId}.dev.fileprovider",
+            ]
+            resValue 'string', 'assetStatements', assetStatementsFor(devOrigin)
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        // The helper library ships ~80 locales; the app only needs Korean + English.
+        localeFilters += ['ko', 'en']
+    }
+
+    packaging {
+        resources {
+            // Build-time leftovers of the AndroidX / Kotlin dependencies; never read at runtime.
+            excludes += ['META-INF/*.version', 'META-INF/androidx/**', 'kotlin/**', 'DebugProbesKt.bin']
+        }
+    }
+
+    dependenciesInfo {
+        // Play-only encrypted dependency block; pointless for a sideloaded APK.
+        includeInApk false
+        includeInBundle false
+    }
+
+    lint {
+        // Skips lintVitalRelease (avoids a large lint download on a cold Gradle cache).
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}

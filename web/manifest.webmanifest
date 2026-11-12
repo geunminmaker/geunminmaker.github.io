@@ -1,0 +1,21 @@
+{
+  "name": "조각조각 - 이미지 분할",
+  "short_name": "조각조각",
+  "description": "이미지 한 장을 여러 조각으로 나누고, 조각마다 원본 크기로 키워서 PDF, JPG, PNG, Word, PowerPoint, 한글 파일로 저장해요.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "categories": ["utilities", "productivity", "photo"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

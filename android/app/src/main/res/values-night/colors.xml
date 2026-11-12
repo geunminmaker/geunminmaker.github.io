@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- System dark theme: android-browser-helper resolves the splash background through the
+         activity resources, so this night value is picked up automatically. -->
+    <color name="splashBackground">#101214</color>
+</resources>

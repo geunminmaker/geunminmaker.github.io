@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- android-browser-helper looks some strings up by name at runtime; keep them through resource shrinking. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/update_chrome_toast,@string/no_provider_toast,@string/provider_unavailable_*,@string/manage_space_*,@drawable/splash" />

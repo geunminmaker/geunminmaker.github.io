@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101214" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex">
+<title>오픈소스 라이선스 - 조각조각</title>
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<style>
+  :root { color-scheme: light dark; --bg:#FFFFFF; --text:#191F28; --text-2:#4E5968; --line:#E5E8EB; --brand:#1A5FDB; --surface:#F3F5F7; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#101214; --text:#F1F3F5; --text-2:#B4BBC4; --line:#2A2E35; --brand:#78A9FA; --surface:#1C1F24; } }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.65 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif; letter-spacing: -0.005em; word-break: keep-all; overflow-wrap: break-word; }
+  main { max-width: 640px; margin: 0 auto; padding: calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left)); }
+  a { color: var(--brand); text-underline-offset: 3px; }
+  .back { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; text-decoration: none; }
+  h1 { font-size: 26px; line-height: 34px; letter-spacing: -0.025em; margin: 12px 0 8px; }
+  h2 { font-size: 18px; line-height: 26px; letter-spacing: -0.02em; margin: 36px 0 8px; }
+  p { margin: 0 0 12px; color: var(--text-2); }
+  ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+  li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+  li b { display: block; font-weight: 600; }
+  li span { display: block; color: var(--text-2); font-size: 14px; line-height: 20px; }
+  .note { background: var(--surface); border-radius: 12px; padding: 14px 16px; color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← 조각조각으로 돌아가기</a>
+  <h1>오픈소스 라이선스</h1>
+  <p>조각조각은 아래 오픈소스 소프트웨어 덕분에 만들어졌어요. 고맙습니다.</p>
+
+  <h2>이 앱의 소스 코드</h2>
+  <p>조각조각의 전체 소스 코드는 GNU Affero General Public License v3.0(AGPL-3.0)으로 공개되어 있어요. 누구나 받아서 살펴보고 고쳐 쓸 수 있어요.</p>
+  <p><a href="https://github.com/geunminmaker/geunminmaker.github.io" rel="noopener">github.com/geunminmaker/geunminmaker.github.io</a></p>
+
+  <h2>앱에 포함된 소프트웨어</h2>
+  <ul>
+    <li><b>Pyodide 314.0.7</b><span>브라우저에서 Python 실행 · Mozilla Public License 2.0</span></li>
+    <li><b>CPython 3.14</b><span>Python 인터프리터와 표준 라이브러리 · PSF License 2.0</span></li>
+    <li><b>Pillow 12.2.0</b><span>이미지 읽기·확대·저장 · MIT-CMU (HPND)</span></li>
+    <li><b>PyMuPDF 1.27.2.2 / MuPDF</b><span>PDF 읽기와 벡터 분할 · GNU AGPL v3.0 · Artifex Software</span></li>
+    <li><b>olefile 0.47</b><span>HWP·구형 Office 파일 읽기 · BSD 2-Clause</span></li>
+    <li><b>pillow-heif 1.3.0, libheif, libde265</b><span>HEIC 사진 읽기 · BSD 3-Clause, LGPL v3.0</span></li>
+    <li><b>android-browser-helper 2.7.4, AndroidX</b><span>Android 앱(APK) · Apache License 2.0</span></li>
+  </ul>
+  <p style="margin-top:12px">각 소프트웨어의 라이선스 전문은 소스 저장소의 <code>THIRD_PARTY_NOTICES.md</code>와 함께 배포되는 패키지 파일 안에 들어 있어요.</p>
+
+  <h2>한글 문서 형식</h2>
+  <p class="note">본 제품은 한글과컴퓨터의 한글 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.</p>
+
+  <h2>개인정보</h2>
+  <p>조각조각은 고른 파일을 기기 안에서만 처리해요. 파일, 이미지, 사용 기록을 어디에도 보내지 않고, 광고나 분석 도구도 쓰지 않아요.</p>
+</main>
+</body>
+</html>

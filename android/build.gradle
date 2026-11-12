@@ -1,0 +1,5 @@
+// Top-level build file. Versions verified together on 2026-11-12:
+//   Gradle 8.13 + Android Gradle Plugin 8.13.2 + JDK 21 + compileSdk 36 + build-tools 35.0.0
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+}

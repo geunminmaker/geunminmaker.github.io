@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keep in sync with the web app: <meta name="theme-color"> and the web manifest
+         theme_color / background_color (light #FFFFFF, dark #101214). -->
+    <color name="statusBar">#FFFFFF</color>
+    <color name="statusBarDark">#101214</color>
+    <color name="navigationBar">#FFFFFF</color>
+    <color name="navigationBarDark">#101214</color>
+    <color name="navigationDivider">#00000000</color>
+    <color name="navigationDividerDark">#00000000</color>
+    <!-- Splash background; the dark value is in values-night/colors.xml. -->
+    <color name="splashBackground">#FFFFFF</color>
+    <!-- Adaptive launcher icon background (brand blue, same as web/icons/icon-1024.png). -->
+    <color name="ic_launcher_background">#1F6BF0</color>
+</resources>

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.geunminmaker.splitimage",
+      "sha256_cert_fingerprints": [
+        "91:2E:8B:65:93:89:68:73:9F:FB:4C:8A:C7:F5:1C:1B:B7:D1:61:37:A6:9E:F2:36:0C:EF:B9:AF:00:64:E5:34"
+      ]
+    }
+  }
+]

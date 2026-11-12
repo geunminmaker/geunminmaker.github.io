@@ -1,0 +1,125 @@
+/* ---------------------------------------------------------------
+   Components
+   --------------------------------------------------------------- */
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:var(--h-btn);padding:0 20px;border-radius:var(--r-btn);font-size:17px;line-height:24px;font-weight:600;letter-spacing:-0.01em;white-space:nowrap;text-align:center;user-select:none;-webkit-user-select:none;transition:background-color var(--t-press) ease,color var(--t-press) ease,transform var(--t-press) ease}
+.btn--block{width:100%}
+.btn--primary{background:var(--brand);color:var(--on-brand)}
+.btn--secondary{background:var(--surface);color:var(--text)}
+@media (hover:hover){
+  .btn--primary:hover:not(:disabled){background:var(--brand-hover)}
+  .btn--secondary:hover:not(:disabled){background:var(--surface-2)}
+}
+.btn:active:not(:disabled){transform:scale(.98)}
+.btn--primary:active:not(:disabled){background:var(--brand-press)}
+.btn--secondary:active:not(:disabled){background:var(--surface-2)}
+.btn:disabled{background:var(--surface);color:var(--text-off);cursor:default}
+.btn--md{height:48px;font-size:16px;border-radius:var(--r-md)}
+.btnrow{display:flex;gap:8px}
+.btnrow>.btn{flex:1 1 0;min-width:0;padding:0 12px}
+.btnrow>.btn--primary{flex-grow:1.7}
+.btn--ghost{width:100%;height:44px;margin-top:4px;border-radius:var(--r-md);font-size:15px;line-height:20px;color:var(--text-2)}
+.btn--ghost:active:not(:disabled){background:var(--surface)}
+@media (hover:hover){.btn--ghost:hover:not(:disabled){background:var(--surface)}}
+.btn[aria-busy="true"]{pointer-events:none}
+
+.spin{width:20px;height:20px;flex:none;border-radius:50%;border:2.5px solid var(--brand-tint-2);border-top-color:var(--brand);animation:spin .8s linear infinite}
+.btn--primary .spin{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* file-type badge: typographic, no colour coding */
+.fbadge{width:40px;height:40px;flex:none;border-radius:10px;background:var(--surface);color:var(--text-2);display:grid;place-items:center;font-size:10.5px;line-height:1;font-weight:700;letter-spacing:.02em}
+
+/* list rows */
+.row{display:flex;align-items:center;gap:12px;width:calc(100% + 24px);min-height:60px;margin:0 -12px;padding:8px 12px;border-radius:var(--r-md);text-align:left;transition:background-color var(--t-press) ease}
+.row:active{background:var(--surface)}
+@media (hover:hover){.row:hover{background:var(--surface)}}
+.row__t{flex:1;min-width:0;display:flex;flex-direction:column}
+.row__t b{font-size:16px;line-height:22px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row__t small{font-size:13px;line-height:18px;color:var(--text-3)}
+.row>.ic{color:var(--text-off)}
+
+.fileline{margin-top:24px;display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line)}
+.sheet .fileline{margin-top:8px}
+
+/* progress */
+.bar{position:relative;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:3px;background:var(--brand);transition:width 240ms linear}
+/* WebKit reports only a few download progress events, so a sheen keeps the bar alive between them */
+.bar.is-busy::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--sheen),transparent);transform:translateX(-100%);animation:sheen 1.4s ease-in-out infinite}
+.bar.is-indet i{width:36%;transition:none;animation:indet 1.3s ease-in-out infinite}
+@keyframes sheen{to{transform:translateX(100%)}}
+@keyframes indet{from{transform:translateX(-100%)}to{transform:translateX(278%)}}
+
+/* segmented control */
+.seg{display:flex;gap:2px;padding:3px;border-radius:var(--r-md);background:var(--surface)}
+.seg button{position:relative;flex:1 1 0;height:38px;padding:0 12px;border-radius:9px;font-size:15px;line-height:20px;font-weight:600;color:var(--text-3);text-align:center;white-space:nowrap;transition:background-color var(--t) ease,color var(--t) ease,box-shadow var(--t) ease}
+.seg button::before{content:"";position:absolute;inset:-3px 0}
+.seg button[aria-checked="true"]{background:var(--seg-on);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+
+/* check row (a single on/off choice) */
+.check{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;text-align:left}
+.check__box{width:22px;height:22px;flex:none;border-radius:var(--r-xs);display:grid;place-items:center;box-shadow:inset 0 0 0 1.5px var(--line-strong);color:transparent;transition:background-color var(--t-press) ease,box-shadow var(--t-press) ease}
+.check[aria-checked="true"] .check__box{background:var(--brand);box-shadow:none;color:#fff}
+.check__t{flex:1;min-width:0;display:flex;flex-direction:column}
+.check__t b{font-size:14px;line-height:20px;font-weight:600;color:var(--text-2)}
+.check__t small{font-size:13px;line-height:18px;color:var(--text-3)}
+
+/* text field */
+.field{display:block;margin-top:24px}
+.field__label{display:block;margin-bottom:8px;font-size:14px;line-height:20px;font-weight:600;color:var(--text-2)}
+.field__box{display:flex;align-items:center;height:56px;padding:0 4px 0 16px;border-radius:var(--r-md);background:var(--surface);box-shadow:inset 0 0 0 2px transparent;transition:box-shadow var(--t-press) ease,background-color var(--t-press) ease}
+.field__box:focus-within{background:var(--bg);box-shadow:inset 0 0 0 2px var(--brand)}
+.field__box input{flex:1;min-width:0;height:100%;border:0;background:none;font-size:17px;outline:none}
+.field__box input::placeholder{color:var(--text-off)}
+.field__box .iconbtn{color:var(--text-3)}
+.field.is-error .field__box{box-shadow:inset 0 0 0 2px var(--danger)}
+.field__msg{display:block;min-height:18px;margin-top:8px;font-size:13px;line-height:18px;color:var(--danger)}
+
+/* inline notice */
+.notice{display:flex;align-items:center;gap:12px;width:100%;margin-top:20px;padding:12px 8px 12px 16px;border-radius:var(--r-md);background:var(--surface);text-align:left;transition:background-color var(--t-press) ease}
+button.notice:active{background:var(--surface-2)}
+.notice>.ic:first-child{color:var(--text-2);align-self:flex-start;margin-top:8px}
+button.notice>.ic:first-child{align-self:center;margin-top:0}
+.notice>.ic:last-child{color:var(--text-off)}
+.notice__t{flex:1;min-width:0}
+.notice__t b{display:block;font-size:14px;line-height:20px;font-weight:600}
+.notice__t small{display:block;font-size:13px;line-height:18px;color:var(--text-3);overflow-wrap:anywhere}
+.notice--plain{padding-right:16px}
+.notice--action{padding:4px 4px 4px 16px;min-height:52px}
+.notice--action .notice__t b{font-weight:500;color:var(--text-2)}
+
+/* bottom sheet (dialog on wide screens) */
+.scrim{position:fixed;inset:0;z-index:50;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--t-sheet) ease}
+.scrim.is-open{opacity:1;pointer-events:auto}
+.sheet{--surface:var(--surface-elev);--surface-2:var(--surface-elev-2);position:fixed;left:0;right:0;bottom:0;z-index:51;margin:0 auto;max-width:var(--col);max-height:calc(100dvh - 44px - env(safe-area-inset-top));display:flex;flex-direction:column;background:var(--bg-elev);border-radius:var(--r-xl) var(--r-xl) 0 0;box-shadow:var(--shadow-sheet);transform:translateY(104%);visibility:hidden;transition:transform var(--t-sheet) var(--ease),visibility 0s linear var(--t-sheet)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--t-sheet) var(--ease),visibility 0s}
+.sheet__grab{width:36px;height:4px;flex:none;margin:8px auto 0;border-radius:2px;background:var(--line-strong)}
+.sheet__head{flex:none;display:flex;align-items:flex-start;gap:8px;padding:12px 8px 0 20px;padding-left:max(20px, env(safe-area-inset-left));padding-right:max(8px, env(safe-area-inset-right))}
+.sheet__title{flex:1;padding-top:8px;font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.02em;white-space:pre-line}
+.sheet__body{padding:8px 20px 16px;padding-left:max(20px, env(safe-area-inset-left));padding-right:max(20px, env(safe-area-inset-right));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.sheet__foot{flex:none;padding:12px 20px calc(16px + env(safe-area-inset-bottom));padding-left:max(20px, env(safe-area-inset-left));padding-right:max(20px, env(safe-area-inset-right))}
+.sheet__body:last-child{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.sheet .lead{margin-top:0}
+.sheet .cap{margin-top:12px}
+
+.howto{display:flex;flex-direction:column;gap:20px;margin-top:20px}
+.howto li{display:flex;gap:12px;align-items:flex-start}
+.howto__n{width:24px;height:24px;flex:none;border-radius:8px;background:var(--surface);color:var(--text-2);font-size:13px;line-height:24px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+.howto__t{flex:1;min-width:0}
+.howto__t b{display:block;font-size:16px;line-height:24px;font-weight:600}
+.howto__t small{display:block;margin-top:4px;font-size:13px;line-height:18px;color:var(--text-3)}
+.key{display:inline-grid;place-items:center;width:28px;height:24px;margin:0 4px;border-radius:6px;background:var(--surface);color:var(--text);vertical-align:top}
+.howto__t small .key{width:24px;height:18px;border-radius:5px;margin:0 4px 0 0}
+.howto__t small .key .ic{width:14px;height:14px}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom));z-index:60;display:flex;align-items:center;gap:8px;width:max-content;max-width:min(calc(100vw - 40px), 420px);padding:12px 16px 12px 12px;border-radius:var(--r-md);background:var(--toast-bg);color:var(--toast-text);font-size:15px;line-height:20px;font-weight:500;box-shadow:var(--shadow-pop);opacity:0;transform:translate(-50%,12px);pointer-events:none;transition:opacity var(--t) ease,transform var(--t) var(--ease)}
+.toast.is-open{opacity:1;transform:translate(-50%,0)}
+.toast span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toast--wrap{align-items:flex-start}
+.toast--wrap span{white-space:normal;overflow-wrap:anywhere}
+
+/* whole-page drop target while a file is dragged over the window */
+.dropveil{position:fixed;inset:12px;z-index:70;display:none;place-items:center;padding:24px;border-radius:var(--r-xl);background:var(--brand-tint);box-shadow:inset 0 0 0 2px var(--brand);color:var(--brand-text);font-size:20px;line-height:28px;font-weight:700;letter-spacing:-0.02em;text-align:center;pointer-events:none}
+body.is-drag .dropveil{display:grid}
