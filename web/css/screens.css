@@ -9,7 +9,7 @@
 .facts li{display:flex;align-items:flex-start;gap:8px;font-size:14px;line-height:20px;color:var(--text-3)}
 .facts .ic{margin-top:1px;stroke-width:1.6}
 .facts a{display:inline-flex;align-items:center;min-height:44px;margin:-12px 0;color:inherit;text-decoration:underline;text-decoration-color:var(--line-strong,currentColor);text-underline-offset:3px}
-.demo__grid{--gap:4px;width:min(100%, calc((100dvh - 500px) * 4 / 3));min-width:184px;aspect-ratio:4/3;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:var(--gap)}
+.demo__grid{--gap:4px;width:min(100%, calc((calc(100 * var(--dvh)) - 500px) * 4 / 3));min-width:184px;aspect-ratio:4/3;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:var(--gap)}
 .demo__grid i{border-radius:5px;background-color:var(--surface);background-image:url("demo.svg");background-size:300% 300%}
 .demo__grid i:nth-child(3n+1){background-position-x:0}
 .demo__grid i:nth-child(3n+2){background-position-x:50%}
@@ -19,6 +19,7 @@
 .demo__grid i:nth-child(n+7){background-position-y:100%}
 .drop{display:none}
 @media (max-width:359px){.facts li{font-size:13px;line-height:18px}}
+@media (max-height:359px){html:is([data-turn="left"],[data-turn="right"]) .facts li{font-size:13px;line-height:18px}}
 
 /* 2 · preparing */
 .prep .lead{min-height:48px}
@@ -55,13 +56,13 @@
 .stage__fit>img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity var(--t) ease}
 .stage__fit>img.is-in{opacity:1}
 .stage__spin{position:absolute;left:50%;top:50%;margin:-10px 0 0 -10px}
-.confirm .stage{--maxh:min(50dvh, 480px)}
+.confirm .stage{--maxh:min(calc(50 * var(--dvh)), 480px)}
 .meta{margin-top:16px;display:flex;flex-direction:column}
 .meta b{font-size:16px;line-height:24px;font-weight:600;overflow-wrap:anywhere}
 .meta span{font-size:14px;line-height:20px;color:var(--text-3);font-variant-numeric:tabular-nums}
 
 /* 5 · split settings */
-.split .stage{--maxh:min(32dvh, 300px);margin-top:20px}
+.split .stage{--maxh:min(calc(32 * var(--dvh)), 300px);margin-top:20px}
 .gridlines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;animation:fade var(--t) ease both}
 .gridlines line{vector-effect:non-scaling-stroke}
 .gl-case line{stroke:rgba(0,0,0,.4);stroke-width:3.5px}
@@ -106,7 +107,7 @@
 .ask span{font-size:13px;line-height:18px;color:var(--text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* 6 · making the files */
-.work .stage{--maxh:min(40dvh, 360px)}
+.work .stage{--maxh:min(calc(40 * var(--dvh)), 360px)}
 .veil{position:absolute;inset:0;display:grid;pointer-events:none}
 .veil i{background:rgba(16,18,20,.56);transition:background-color 220ms ease}
 .veil i.is-now{background:rgba(16,18,20,.24)}
@@ -116,7 +117,7 @@
 
 /* 7 · result */
 /* the mosaic stays modest on phones so the format cards and the paper option are reachable without hunting */
-.result{--maxh:min(22dvh, 200px)}
+.result{--maxh:min(calc(22 * var(--dvh)), 200px)}
 .result__panel{display:flex;flex-direction:column;min-width:0}
 .mosaic{--gap:4px;--rad:6px;width:min(100%, calc(var(--maxh) * var(--ar)));margin:20px auto 0;display:grid;grid-template-columns:repeat(var(--c),minmax(0,1fr));gap:var(--gap)}
 .mosaic i{position:relative;aspect-ratio:var(--tar);border-radius:var(--rad);background-color:var(--surface);background-image:var(--img);background-size:calc(var(--c) * 100%) calc(var(--r) * 100%);overflow:hidden}
@@ -146,6 +147,10 @@
   .fmt{padding:12px}
   .fmt__radio{display:none}
 }
+@media (max-height:359px){
+  html:is([data-turn="left"],[data-turn="right"]) .fmt{padding:12px}
+  html:is([data-turn="left"],[data-turn="right"]) .fmt__radio{display:none}
+}
 
 /* 8 · errors */
 .error__icon{width:48px;height:48px;margin:8px 0 20px;border-radius:14px;display:grid;place-items:center;background:var(--surface);color:var(--text-2)}
@@ -154,14 +159,14 @@
 /* ---------------------------------------------------------------
    Wide screens: centred column, two panes where it helps
    --------------------------------------------------------------- */
-@media (min-width:600px){
+@media (min-width:600px) and (min-height:500px), (min-width:600px) and (pointer:fine){
   .view{padding-top:24px}
   .thumbs{gap:20px 12px}
-  .split .stage{--maxh:min(44dvh, 420px)}
-  .confirm .stage,.work .stage{--maxh:min(52dvh, 520px)}
-  .result{--maxh:min(30dvh, 300px)}
+  .split .stage{--maxh:min(calc(44 * var(--dvh)), 420px)}
+  .confirm .stage,.work .stage{--maxh:min(calc(52 * var(--dvh)), 520px)}
+  .result{--maxh:min(calc(30 * var(--dvh)), 300px)}
 }
-@media (min-width:900px){
+@media (min-width:900px) and (min-height:500px), (min-width:900px) and (pointer:fine){
   :root{--gutter:32px;--h-bar:64px}
   .app{max-width:none}
   .topbar__row,.steps{max-width:1104px;margin-left:auto;margin-right:auto}
@@ -181,7 +186,7 @@
   .w-only{display:inline}
 
   /* home: copy on the left, drop target on the right */
-  .home{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,480px);column-gap:80px;align-items:center;min-height:calc(100dvh - 64px - 3px - 48px - 96px)}
+  .home{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,480px);column-gap:80px;align-items:center;min-height:calc(calc(100 * var(--dvh)) - 64px - 3px - 48px - 96px)}
   .home__left,.home__right{display:block}
   .h1--xl{font-size:44px;line-height:56px;letter-spacing:-0.03em}
   .home .lead{margin-top:16px;max-width:400px;font-size:18px;line-height:28px}
@@ -204,8 +209,8 @@
   .split>.h1{grid-area:head}
   .split__stage{grid-area:stage;position:sticky;top:112px}
   .split__panel{grid-area:panel;min-width:0}
-  .split .stage{--maxh:min(64dvh, 560px);margin-top:0}
-  .confirm .stage{--maxh:min(50dvh, 480px)}
+  .split .stage{--maxh:min(calc(64 * var(--dvh)), 560px);margin-top:0}
+  .confirm .stage{--maxh:min(calc(50 * var(--dvh)), 480px)}
   .counts{margin-top:28px}
   .count{height:56px}
   .layouts{flex-wrap:wrap;overflow:visible;margin:0;padding:12px 0 4px;gap:12px 8px}
@@ -217,27 +222,27 @@
   .work>.lead,.result>.lead{grid-area:lead}
   .work__stage,.result__stage{grid-area:stage;position:sticky;top:112px}
   .work__panel,.result__panel{grid-area:panel;min-width:0}
-  .work .stage{--maxh:min(64dvh, 560px);margin-top:0}
+  .work .stage{--maxh:min(calc(64 * var(--dvh)), 560px);margin-top:0}
   .work .prog{margin-top:32px}
-  .result{--maxh:min(64dvh, 560px)}
+  .result{--maxh:min(calc(64 * var(--dvh)), 560px)}
   .mosaic{margin-top:0}
   .h2{margin-top:32px}
 
   /* sheets become dialogs */
-  .sheet{left:50%;right:auto;bottom:auto;top:50%;width:440px;max-height:min(720px, calc(100dvh - 64px));border-radius:var(--r-xl);box-shadow:var(--shadow-pop);opacity:0;transform:translate(-50%,-48%);transition:transform var(--t-sheet) var(--ease),opacity var(--t-sheet) ease,visibility 0s linear var(--t-sheet)}
+  .sheet{left:50%;right:auto;bottom:auto;top:50%;width:440px;max-height:min(720px, calc(calc(100 * var(--dvh)) - 64px));border-radius:var(--r-xl);box-shadow:var(--shadow-pop);opacity:0;transform:translate(-50%,-48%);transition:transform var(--t-sheet) var(--ease),opacity var(--t-sheet) ease,visibility 0s linear var(--t-sheet)}
   .sheet.is-open{opacity:1;transform:translate(-50%,-50%);transition:transform var(--t-sheet) var(--ease),opacity var(--t-sheet) ease,visibility 0s}
   .sheet__grab{display:none}
   .sheet__head{padding-top:16px}
   .toast{bottom:40px}
 }
 
-/* short viewports (a phone held sideways): nothing sticks, the page simply scrolls */
+/* short viewports (a small window; a phone's page is turned upright instead): nothing sticks, the page simply scrolls */
 @media (max-height:480px) and (max-width:899px){
-  .topbar,.dock{position:static}
-  .dock::before{display:none}
-  .split .stage,.confirm .stage,.work .stage{--maxh:min(72dvh, 420px)}
-  .result{--maxh:min(72dvh, 360px)}
-  .demo__grid{width:min(100%, 320px)}
+  html:not([data-turn]) :is(.topbar,.dock){position:static}
+  html:not([data-turn]) .dock::before{display:none}
+  html:not([data-turn]) :is(.split .stage,.confirm .stage,.work .stage){--maxh:min(calc(72 * var(--dvh)), 420px)}
+  html:not([data-turn]) :is(.result){--maxh:min(calc(72 * var(--dvh)), 360px)}
+  html:not([data-turn]) :is(.demo__grid){width:min(100%, 320px)}
 }
 
 /* the spinner is the only looping animation; keep it readable instead of collapsing it */

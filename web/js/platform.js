@@ -293,6 +293,60 @@ export function persistStorage() {
 }
 
 // ---------------------------------------------------------------------------
+// Phones stay upright
+// ---------------------------------------------------------------------------
+// The app is laid out for a phone held upright.  An installed Android app can ask the system not
+// to turn the screen; nothing else can (a browser tab, any iPhone).  There the page is turned back:
+// when the system rotates the screen, CSS rotates the whole page the other way (html[data-turn]
+// in base.css), so what the person sees stays where it was.  Tablets and computers are left alone.
+
+/** A phone, not a tablet: a touch screen whose short side is under 600 CSS px. */
+export const isPhone = (navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches)
+  && Math.min(window.screen.width, window.screen.height) < 600;
+
+/** How far the system has turned the screen from upright, clockwise: 0, 90, 180 or 270. */
+function screenAngle() {
+  const orientation = window.screen.orientation;
+  let angle = null;
+  if (orientation && typeof orientation.angle === "number") angle = orientation.angle;
+  else if (typeof window.orientation === "number") angle = window.orientation;  // older iOS: 0, 90, -90, 180
+  if (angle === null) return window.matchMedia("(orientation: landscape)").matches ? 90 : 0;
+  return (((Math.round(angle / 90) * 90) % 360) + 360) % 360;
+}
+
+const TURNS = { 90: "left", 180: "over", 270: "right" };
+
+/** True while the page is turned back upright (then the screen area scrolls instead of the window). */
+export const isTurned = () => Boolean(document.documentElement.dataset.turn);
+
+/**
+ * Keep the page upright on phones.
+ * @param {() => void} [onChange]  runs after the page was turned or released
+ */
+export function keepUpright(onChange) {
+  if (!isPhone) return;
+  const root = document.documentElement;
+  const apply = () => {
+    const turn = TURNS[screenAngle()] || "";
+    if ((root.dataset.turn || "") === turn) return;
+    if (turn) root.dataset.turn = turn;
+    else delete root.dataset.turn;
+    if (onChange) onChange();
+  };
+  apply();
+  const orientation = window.screen.orientation;
+  if (orientation && orientation.addEventListener) orientation.addEventListener("change", apply);
+  window.addEventListener("orientationchange", apply);
+  window.addEventListener("resize", apply);
+  // An installed Android app may simply ask; then the screen does not turn in the first place.
+  if (isStandalone && orientation && typeof orientation.lock === "function") {
+    try {
+      Promise.resolve(orientation.lock("portrait-primary")).catch(() => {});
+    } catch (error) { /* not allowed here: the page is turned back instead */ }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Screen wake lock (the phone must not sleep in the middle of an export)
 // ---------------------------------------------------------------------------
 let wakeLock = null;

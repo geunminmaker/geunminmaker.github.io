@@ -31,7 +31,8 @@ const inputFiles = $("#input-files");
 const backButton = $('[data-action="back"]');
 const installButton = $('[data-action="install"]');
 const restartButton = $('[data-action="restart"]');
-const wideLayout = window.matchMedia("(min-width:900px)");
+// the same condition as the two-pane rules in screens.css (a phone on its side is wide, but stays upright)
+const wideLayout = window.matchMedia("(min-width:900px) and (min-height:500px), (min-width:900px) and (pointer:fine)");
 
 // The home screen is static markup in index.html (it paints before any script runs); keep it for later visits.
 const HOME_HTML = view.innerHTML.replace(" screen--still", "");
@@ -174,6 +175,12 @@ function paintTopBar() {
 let dockChangedAt = -1000;  // not right after the page loaded either
 const DOUBLE_TAP_MS = 300;
 
+/** Scroll the page: the window, or the screen area while the page is turned back upright (platform.keepUpright). */
+function scrollPage(options) {
+  if (platform.isTurned()) view.scrollTo(options);
+  else window.scrollTo(options);
+}
+
 function setScreen(name, html, { step = 0, dockHTML = "", back = true, focus = true } = {}) {
   if (S.thumbs) {
     S.thumbs.disconnect();
@@ -191,7 +198,7 @@ function setScreen(name, html, { step = 0, dockHTML = "", back = true, focus = t
   placeDock();
   backButton.hidden = !back;
   paintTopBar();
-  window.scrollTo(0, 0);
+  scrollPage({ top: 0 });
   fitStages();
   if (focus) focusHeadline();
 }
@@ -728,7 +735,13 @@ function paintSplit(relist) {
 /** The layout cards appear below the tapped control: lift them above the pinned action area. */
 function revealLayouts() {
   const wrap = $("#layouts-wrap");
-  if (!wrap || wrap.hidden || getComputedStyle(dock).position !== "sticky") return;
+  if (!wrap || wrap.hidden) return;
+  if (platform.isTurned()) {  // the screen area is the scroller and the action area sits below it
+    wrap.style.scrollMarginBottom = "12px";
+    wrap.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    return;
+  }
+  if (getComputedStyle(dock).position !== "sticky") return;
   const limit = window.innerHeight - dock.offsetHeight - 12;
   const bottom = wrap.getBoundingClientRect().bottom;
   if (bottom > limit) window.scrollBy({ top: bottom - limit, behavior: "smooth" });
@@ -1267,7 +1280,7 @@ const ACTIONS = {
     S.count = null;
     chooseLayout(null);
     paintSplit(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollPage({ top: 0, behavior: "smooth" });
   },
   "split-yes": (element) => {
     const source = S.source;
@@ -1457,6 +1470,10 @@ function start() {
   }
   S.inApp = platform.inAppBrowser();
   if (platform.isAndroid) inputFiles.accept = ANDROID_FILE_TYPES;
+  platform.keepUpright(() => {
+    placeDock();
+    fitStages();
+  });
   document.body.dataset.ready = "1";
   placeDock();
   paintHome();

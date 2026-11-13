@@ -1,6 +1,6 @@
 {
- "version": "eb7b84b444cb",
- "app_version": "1.1.0",
+ "version": "0f4ec6a6887d",
+ "app_version": "1.1.1",
  "python": "3.14.2",
  "boot": [
   {
@@ -17,14 +17,14 @@
   },
   {
    "file": "py/splitcore.zip",
-   "size": 73322
+   "size": 73321
   },
   {
    "file": "vendor/pyodide/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl",
    "size": 1367707
   }
  ],
- "boot_bytes": 15509568,
+ "boot_bytes": 15509567,
  "packages": {
   "pillow": {
    "file": "vendor/pyodide/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl",

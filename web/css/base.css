@@ -34,11 +34,48 @@ img{display:block;max-width:100%}
 .ic--16{width:16px;height:16px;stroke-width:1.9}
 
 /* ---------------------------------------------------------------
+   Sizes of the box the page is laid out in.  They are the viewport's, except while a phone's
+   screen is turned and the page is turned back (below): then width and height trade places.
+   --------------------------------------------------------------- */
+:root{
+  --dvh:1dvh;--vw:1vw;
+  --sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);
+  --sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);
+}
+
+/* ---------------------------------------------------------------
+   Phones stay upright.  The app is made for a phone held upright; when the system turns the
+   screen anyway (a browser tab, any iPhone - only an installed Android app can ask it not to),
+   platform.js sets data-turn on <html> and the whole page is rotated the other way, so what
+   the person sees stays where it was.
+     left  = the system turned the screen 90deg clockwise  (the phone's top is on the left)
+     right = 270deg (the phone's top is on the right)      over = upside down
+   The page box is then as wide as the viewport is high.  body holds the box and everything
+   that is position:fixed (sheet, toast).  Inside it the bar and the action area are plain rows
+   above and below the screen, and only the screen scrolls: position:sticky is not used here,
+   because Safari measures it against the unturned viewport.
+   --------------------------------------------------------------- */
+html[data-turn]{overflow:hidden}
+html[data-turn] body{position:fixed;top:0;left:0;overflow:hidden;transform-origin:0 0}
+html[data-turn="left"],html[data-turn="right"]{--dvh:1dvw;--vw:1dvh}
+html[data-turn="left"] body,html[data-turn="right"] body{width:100dvh;height:100dvw}
+html[data-turn="left"] body{transform:rotate(-90deg) translateX(-100%)}
+html[data-turn="right"] body{transform:rotate(90deg) translateY(-100%)}
+html[data-turn="over"] body{width:100vw;height:100dvh;transform:rotate(180deg) translate(-100%,-100%)}
+html[data-turn="left"]{--sat:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-right,0px);--sal:env(safe-area-inset-bottom,0px)}
+html[data-turn="right"]{--sat:env(safe-area-inset-right,0px);--sar:env(safe-area-inset-bottom,0px);--sab:env(safe-area-inset-left,0px);--sal:env(safe-area-inset-top,0px)}
+html[data-turn="over"]{--sat:env(safe-area-inset-bottom,0px);--sar:env(safe-area-inset-left,0px);--sab:env(safe-area-inset-top,0px);--sal:env(safe-area-inset-right,0px)}
+html[data-turn] .app{height:100%;min-height:0;overflow:hidden}
+html[data-turn] .topbar{position:static;flex:none}
+html[data-turn] .dock{position:relative;flex:none}
+html[data-turn] .view{flex:1 1 0;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+/* ---------------------------------------------------------------
    App shell
    --------------------------------------------------------------- */
-.app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;max-width:var(--col);margin:0 auto}
-.topbar{position:sticky;top:0;z-index:20;background:var(--bg);padding-top:env(safe-area-inset-top);padding-bottom:8px}
-.topbar__row{height:var(--h-bar);display:flex;align-items:center;padding:0 calc(var(--gutter) - 12px);padding-left:max(calc(var(--gutter) - 12px), env(safe-area-inset-left));padding-right:max(calc(var(--gutter) - 12px), env(safe-area-inset-right))}
+.app{min-height:100vh;min-height:calc(100 * var(--dvh));display:flex;flex-direction:column;max-width:var(--col);margin:0 auto}
+.topbar{position:sticky;top:0;z-index:20;background:var(--bg);padding-top:var(--sat);padding-bottom:8px}
+.topbar__row{height:var(--h-bar);display:flex;align-items:center;padding:0 calc(var(--gutter) - 12px);padding-left:max(calc(var(--gutter) - 12px), var(--sal));padding-right:max(calc(var(--gutter) - 12px), var(--sar))}
 .topbar__fill{flex:1}
 .brand{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;font-size:18px;line-height:24px;font-weight:700;letter-spacing:-0.02em}
 .brand svg{width:22px;height:22px;flex:none}
@@ -61,13 +98,13 @@ body:not([data-screen="home"]) .brand{display:none}
 .app[data-step="3"] .steps i:nth-child(-n+3)::after{transform:scaleX(1)}
 .app[data-step="0"] .steps{opacity:0}
 
-.view{flex:1;display:flex;flex-direction:column;padding:12px var(--gutter) 24px;padding-left:max(var(--gutter), env(safe-area-inset-left));padding-right:max(var(--gutter), env(safe-area-inset-right));min-width:0}
+.view{flex:1;display:flex;flex-direction:column;padding:12px var(--gutter) 24px;padding-left:max(var(--gutter), var(--sal));padding-right:max(var(--gutter), var(--sar));min-width:0}
 .screen{flex:1;display:flex;flex-direction:column;min-width:0;animation:enter 220ms var(--ease) both}
 .screen--still{animation:none}
 @keyframes enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* bottom-anchored action area */
-.dock{position:sticky;bottom:0;z-index:15;background:var(--bg);padding:12px var(--gutter) calc(16px + env(safe-area-inset-bottom));padding-left:max(var(--gutter), env(safe-area-inset-left));padding-right:max(var(--gutter), env(safe-area-inset-right))}
+.dock{position:sticky;bottom:0;z-index:15;background:var(--bg);padding:12px var(--gutter) calc(16px + var(--sab));padding-left:max(var(--gutter), var(--sal));padding-right:max(var(--gutter), var(--sar))}
 .dock::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:20px;background:linear-gradient(to top,var(--bg),var(--bg-0));pointer-events:none}
 .dock:empty{display:none}
 .dock__hint{margin:0 0 12px;text-align:center}
@@ -81,6 +118,9 @@ body:not([data-screen="home"]) .brand{display:none}
 .cap{font-size:13px;line-height:18px;color:var(--text-3);text-wrap:pretty}
 @media (max-width:359px){
   .h1{font-size:24px;line-height:32px}
+}
+@media (max-height:359px){
+  html:is([data-turn="left"],[data-turn="right"]) .h1{font-size:24px;line-height:32px}
 }
 
 .noscript{padding:16px var(--gutter);font-size:15px;line-height:22px;color:var(--text-2);background:var(--surface)}
